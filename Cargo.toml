@@ -1,0 +1,7 @@
+[package]
+name = "gl-demo"
+version = "0.1.0"
+authors = ["Will Boyd <whboyd@wesleyan.edu>"]
+
+[dependencies]
+glium = "*"
