@@ -11,7 +11,7 @@ fn main() {
 
 	// Main program loop
 	println!("Starting program loop...");
-	loop {
+	'main: loop {
 		let mut target = display.draw();
 		target.clear_color(0.5, 0.5, 1.0, 1.0);
 		// More drawing commands here
@@ -19,12 +19,15 @@ fn main() {
 
 		// Handle events
 		for ev in display.poll_events() {
+			println!("Got event: {:?}", ev);
 			match ev {
-				Event::Closed => {
-					println!("Got Closed event, exiting...");
-					return; },
-				x => println!("Got event: {:?}", x)
+				Event::Closed => break 'main,
+				_ => ()
 			}
 		}
+
+		// Wait for end of frame
 	}
+
+	println!("Program loop ended, exiting...");
 }
