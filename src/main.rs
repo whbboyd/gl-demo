@@ -16,9 +16,9 @@ fn main() {
 		FRAGMENT_SHADER_SRC,
 		None).unwrap();
 	let shape = vec![
-		Vertex{coords:[-0.5, -0.5]},
-		Vertex{coords:[0.0, 0.5]},
-		Vertex{coords:[0.5, -0.5]}];
+		Vertex{coords:[-0.5, -0.5, 1.0]},
+		Vertex{coords:[0.0, 0.5, 1.0]},
+		Vertex{coords:[0.5, -0.5, 1.0]}];
 	let vertex_buffer = glium::VertexBuffer::new(&display, &shape).unwrap();
 	let indices = glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList);
 
@@ -52,11 +52,28 @@ fn main() {
 
 #[derive(Copy, Clone)]
 struct Vertex {
-	coords: [f32; 2]
+	coords: [f32; 3]
 }
 implement_vertex!(Vertex, coords);
 
 static VERTEX_SHADER_SRC: &'static str = r#"
+		#version 120
+
+		void main(void) {
+			gl_Position = ftransform();
+		}
+
+	"#;
+
+static FRAGMENT_SHADER_SRC: &'static str = r#"
+		#version 120
+
+		void main(void) {
+			gl_FragColor = vec4(0.5, 1.0, 0.5, 1.0);
+		}
+	"#;
+
+static VERTEX_SHADER_SRC_140: &'static str = r#"
 	#version 140
 
 	in vec2 position;
@@ -66,7 +83,7 @@ static VERTEX_SHADER_SRC: &'static str = r#"
 		}
 	"#;
 
-static FRAGMENT_SHADER_SRC: &'static str = r#"
+static FRAGMENT_SHADER_SRC_140: &'static str = r#"
 	#version 140
 
 	out vec4 color;
