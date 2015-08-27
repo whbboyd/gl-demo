@@ -7,8 +7,9 @@ use glium::glutin::Event;
 fn main() {
 	println!("Starting demo...");
 
-	println!("Initializing window...");
+	println!("Initializing display...");
 	let display = glium::glutin::WindowBuilder::new().build_glium().unwrap();
+	println!("Compiling shaders...");
 	let program = glium::Program::from_source(
 		&display,
 		VERTEX_SHADER_SRC,
