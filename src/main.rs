@@ -16,9 +16,9 @@ fn main() {
 		FRAGMENT_SHADER_SRC,
 		None).unwrap();
 	let shape = vec![
-		Vertex{coords:[-0.5, -0.5, 1.0]},
-		Vertex{coords:[0.0, 0.5, 1.0]},
-		Vertex{coords:[0.5, -0.5, 1.0]}];
+		Vertex{position:[-0.5, -0.5, 1.0]},
+		Vertex{position:[0.0, 0.5, 1.0]},
+		Vertex{position:[0.5, -0.25, 1.0]}];
 	let vertex_buffer = glium::VertexBuffer::new(&display, &shape).unwrap();
 	let indices = glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList);
 
@@ -50,46 +50,26 @@ fn main() {
 	println!("Program loop ended, exiting...");
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 struct Vertex {
-	coords: [f32; 3]
+	position: [f32; 3]
 }
-implement_vertex!(Vertex, coords);
+implement_vertex!(Vertex, position);
 
 static VERTEX_SHADER_SRC: &'static str = r#"
-		#version 120
+	#version 120
 
-		void main(void) {
-			gl_Position = ftransform();
+	attribute vec3 position;
+
+		void main() {
+			gl_Position = vec4(position, 1.0);
 		}
-
 	"#;
 
 static FRAGMENT_SHADER_SRC: &'static str = r#"
 		#version 120
 
 		void main(void) {
-			gl_FragColor = vec4(0.5, 1.0, 0.5, 1.0);
+			gl_FragColor = vec4(0.1, 0.5, 0.1, 1.0);
 		}
 	"#;
-
-static VERTEX_SHADER_SRC_140: &'static str = r#"
-	#version 140
-
-	in vec2 position;
-
-		void main() {
-			gl_Position = vec4(position, 0.0, 1.0);
-		}
-	"#;
-
-static FRAGMENT_SHADER_SRC_140: &'static str = r#"
-	#version 140
-
-	out vec4 color;
-
-	void main() {
-		color = vec4(0.2, 0.8, 0.2, 1.0);
-	}
-"#;
-
