@@ -5,3 +5,4 @@ authors = ["Will Boyd <whboyd@wesleyan.edu>"]
 
 [dependencies]
 glium = "*"
+time = "*"
