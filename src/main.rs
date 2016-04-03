@@ -157,8 +157,7 @@ fn main() {
 
 		if frame % fps_message_interval == 0 {
 			let current_time = PreciseTime::now();
-			let duration = last_time.to(current_time).num_milliseconds() as f32 /
-				fps_message_interval as f32;
+			let duration = last_time.to(current_time).num_milliseconds() as f32 / 1000.0;
 			let fps = fps_message_interval as f32 / duration;
 			last_time = current_time;
 			println!("Rendered {} frames in {} seconds ({} FPS)",
