@@ -44,7 +44,7 @@ fn main() {
 	let positions = glium::VertexBuffer::new(&display, &teapot::VERTICES).unwrap();
 	let normals = glium::VertexBuffer::new(&display, &teapot::NORMALS).unwrap();
 	let indices = glium::IndexBuffer::new(&display, glium::index::PrimitiveType::TrianglesList,
-												&teapot::INDICES).unwrap();
+													&teapot::INDICES).unwrap();
 	let light = [-1.0, 0.4, 0.9f32];
 
 	let mut frame: u64 = 0;
