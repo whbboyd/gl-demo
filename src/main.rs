@@ -117,28 +117,45 @@ fn main() {
 		// Handle events
 		for ev in display.poll_events() {
 			match ev {
-				Event::Closed => break 'main,
-				Event::Resized(w, h) =>
-					perspective = display_math::perspective_matrix(w, h, fov),
+				// Esc or Q:
+				Event::KeyboardInput(ElementState::Released, 9, _) |
+				Event::KeyboardInput(ElementState::Released, 24, _) |
+				Event::Closed =>
+					break 'main,
+				// Up:
 				Event::KeyboardInput(ElementState::Pressed, 25, _) =>
 					movement.forward = true,
 				Event::KeyboardInput(ElementState::Released, 25, _) =>
 					movement.forward = false,
+				// Left:
 				Event::KeyboardInput(ElementState::Pressed, 38, _) =>
 					movement.left = true,
 				Event::KeyboardInput(ElementState::Released, 38, _) =>
 					movement.left = false,
+				// Down:
 				Event::KeyboardInput(ElementState::Pressed, 39, _) =>
 					movement.backward = true,
 				Event::KeyboardInput(ElementState::Released, 39, _) =>
 					movement.backward = false,
+				// Right:
 				Event::KeyboardInput(ElementState::Pressed, 40, _) =>
 					movement.right = true,
 				Event::KeyboardInput(ElementState::Released, 40, _) =>
 					movement.right = false,
-				Event::MouseMoved((x, y)) =>
+				// Space:
+				Event::KeyboardInput(ElementState::Released, 65, _) => {
+					camera.loc_x = 2.0;
+					camera.loc_y = 0.0;
+					camera.loc_z = 0.0;
+					camera.dir_x = -1.0;
+					camera.dir_y = 0.0;
+					camera.dir_z = 0.0;
+				}
+				Event::MouseMoved(x, y) =>
 					display_math::handle_mouse_move(
 						&display.get_window().unwrap(), &mut camera, x, y),
+				Event::Resized(w, h) =>
+					perspective = display_math::perspective_matrix(w, h, fov),
 				_ => ()
 			}
 		}
