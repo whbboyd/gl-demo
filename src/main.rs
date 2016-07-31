@@ -41,10 +41,26 @@ fn main() {
 		.. Default::default()
 	};
 
-	let positions = glium::VertexBuffer::new(&display, &teapot::VERTICES).unwrap();
-	let normals = glium::VertexBuffer::new(&display, &teapot::NORMALS).unwrap();
-	let indices = glium::IndexBuffer::new(&display, glium::index::PrimitiveType::TrianglesList,
-													&teapot::INDICES).unwrap();
+	let mut objects = Vec::new();
+	for x in 0..3 { for y in 0..3 { for z in 0..3 {
+		let obx = x as f32 * 1.5;
+		let oby = y as f32 * 1.5;
+		let obz = z as f32 * 1.5;
+		let scale = 0.005 + (obx + oby + obz) / 1500.0;
+		objects.push(Object {
+			vertices: glium::VertexBuffer::new(&display, &teapot::VERTICES).unwrap(),
+			normals: glium::VertexBuffer::new(&display, &teapot::NORMALS).unwrap(),
+			indices: glium::IndexBuffer::new(
+				&display,
+				glium::index::PrimitiveType::TrianglesList,
+				&teapot::INDICES).unwrap(),
+			model_matrix: [
+				[scale,	0.0,	0.0,	0.0],
+				[0.0,	scale,	0.0,	0.0],
+				[0.0,	0.0,	scale,	0.0],
+				[obx,	oby,	obz,	1.0] ] } );
+	} } };
+
 	let light = [-1.0, 0.4, 0.9f32];
 
 	let mut frame: u64 = 0;
@@ -56,7 +72,7 @@ fn main() {
 	let mut perspective = display_math::perspective_matrix(1, 1, fov);
 
 	let mut camera = display_math::Camera {
-		loc_x: 2.0,
+		loc_x: 5.0,
 		loc_y: 0.0,
 		loc_z: 0.0,
 		dir_x: -1.0,
@@ -78,30 +94,24 @@ fn main() {
 		let mut target = display.draw();
 		target.clear_color_and_depth((0.5, 0.5, 1.0, 1.0), 1.0);
 
-		let t = (frame % 785) as f32 * 0.008;
-
-		// Let's have the teapot spin. It's the demo version of an idle animation.
-		let model = [
-				[0.01 * t.cos(), 0.0,  -0.01 * t.sin(), 0.0],
-				[0.0,            0.01, 0.0,             0.0],
-				[0.01 * t.sin(), 0.0,  0.01 * t.cos(),  0.0],
-				[0.0,            0.0,  0.0,             1.0] ];
-
 		let view = display_math::view_matrix(
 			&[camera.loc_x, camera.loc_y, camera.loc_z],
 			&[camera.dir_x, camera.dir_y, camera.dir_z],
 			&[0.0, 1.0, 0.0]);
 
-		target.draw(
-			(&positions, &normals),
-			&indices,
-			&program,
-			&uniform! {
-				model_matrix: model,
-				view_matrix: view,
-				perspective_matrix: perspective,
-				u_light: light},
-			&params).unwrap();
+		for object in objects.iter() {
+			target.draw(
+				(&object.vertices, &object.normals),
+				&object.indices,
+				&program,
+				&uniform! {
+					model_matrix: object.model_matrix,
+					view_matrix: view,
+					perspective_matrix: perspective,
+					u_light: light},
+				&params).unwrap();
+		}
+
 		target.finish().unwrap();
 
 		// Handle events
@@ -175,5 +185,12 @@ struct MovementState {
 	backward: bool,
 	left: bool,
 	right: bool
+}
+
+struct Object {
+	vertices: glium::VertexBuffer<teapot::Vertex>,
+	normals: glium::VertexBuffer<teapot::Normal>,
+	indices: glium::IndexBuffer<u16>,
+	model_matrix: [[f32; 4]; 4]
 }
 
