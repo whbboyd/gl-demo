@@ -6,3 +6,6 @@ authors = ["Will Boyd <whboyd@wesleyan.edu>"]
 [dependencies]
 glium = "*"
 time = "*"
+
+log = "*"
+env_logger = "*"

@@ -1,5 +1,9 @@
 #[macro_use]
 extern crate glium;
+#[macro_use]
+extern crate log;
+extern crate env_logger;
+
 extern crate time;
 
 // This is the hardcoded Utah Teapot model from
@@ -18,22 +22,25 @@ use glium::index::PrimitiveType::TrianglesList;
 use time::PreciseTime;
 
 fn main() {
-	println!("Starting demo...");
+	// TODO: I don't particularly like this backend, find/write something better
+	env_logger::init().unwrap();
 
-	println!("Initializing display...");
+	info!("Starting demo...");
+
+	info!("Initializing display...");
 	let display = WindowBuilder::new()
 		.with_depth_buffer(24)
 		.with_vsync()
 		.build_glium().unwrap();
 
-	println!("Compiling shaders...");
+	info!("Compiling shaders...");
 	let program = Program::from_source(
 		&display,
 		shader_source::VERTEX_SHADER_SRC,
 		shader_source::FRAGMENT_SHADER_SRC,
 		None).unwrap();
 
-	println!("Preparing environment...");
+	info!("Preparing environment...");
 	let params = DrawParameters {
 		depth: Depth {
 			test: DepthTest::IfLess,
@@ -44,7 +51,7 @@ fn main() {
 		.. Default::default()
 	};
 
-	println!("Building world...");
+	info!("Building world...");
 	let mut objects = Vec::new();
 	for x in 0..3 { for y in 0..3 { for z in 0..3 {
 		let obx = x as f32 * 1.5;
@@ -88,7 +95,7 @@ fn main() {
 	};
 
 	// Main program loop
-	println!("Starting program loop...");
+	info!("Starting program loop...");
 	'main: loop {
 		frame += 1;
 
@@ -188,14 +195,14 @@ fn main() {
 			let duration = last_time.to(current_time).num_milliseconds() as f32 / 1000.0;
 			let fps = fps_message_interval as f32 / duration;
 			last_time = current_time;
-			println!("Rendered {} frames in {} seconds ({} FPS)",
+			info!("Rendered {} frames in {} seconds ({} FPS)",
 				fps_message_interval,
 				duration,
 				fps);
 		}
 	}
 
-	println!("Program loop ended, exiting...");
+	info!("Program loop ended, exiting...");
 }
 
 struct MovementState {
