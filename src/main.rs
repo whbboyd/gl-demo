@@ -10,37 +10,41 @@ mod teapot;
 mod display_math;
 mod shader_source;
 
-use glium::{DisplayBuild, Surface};
-use glium::glutin::{ElementState, Event};
+use glium::{Depth, DisplayBuild, DrawParameters, Program, Surface};
+use glium::{VertexBuffer, IndexBuffer};
+use glium::draw_parameters::{DepthTest,BackfaceCullingMode};
+use glium::glutin::{ElementState, Event, WindowBuilder};
+use glium::index::PrimitiveType::TrianglesList;
 use time::PreciseTime;
 
 fn main() {
 	println!("Starting demo...");
 
 	println!("Initializing display...");
-	let display = glium::glutin::WindowBuilder::new()
+	let display = WindowBuilder::new()
 		.with_depth_buffer(24)
 		.with_vsync()
 		.build_glium().unwrap();
 
 	println!("Compiling shaders...");
-	let program = glium::Program::from_source(
+	let program = Program::from_source(
 		&display,
 		shader_source::VERTEX_SHADER_SRC,
 		shader_source::FRAGMENT_SHADER_SRC,
 		None).unwrap();
 
 	println!("Preparing environment...");
-	let params = glium::DrawParameters {
-		depth: glium::Depth {
-			test: glium::draw_parameters::DepthTest::IfLess,
+	let params = DrawParameters {
+		depth: Depth {
+			test: DepthTest::IfLess,
 			write: true,
 			.. Default::default()
 		},
-		backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
+		backface_culling: BackfaceCullingMode::CullClockwise,
 		.. Default::default()
 	};
 
+	println!("Building world...");
 	let mut objects = Vec::new();
 	for x in 0..3 { for y in 0..3 { for z in 0..3 {
 		let obx = x as f32 * 1.5;
@@ -48,12 +52,9 @@ fn main() {
 		let obz = z as f32 * 1.5;
 		let scale = 0.005 + (obx + oby + obz) / 1500.0;
 		objects.push(Object {
-			vertices: glium::VertexBuffer::new(&display, &teapot::VERTICES).unwrap(),
-			normals: glium::VertexBuffer::new(&display, &teapot::NORMALS).unwrap(),
-			indices: glium::IndexBuffer::new(
-				&display,
-				glium::index::PrimitiveType::TrianglesList,
-				&teapot::INDICES).unwrap(),
+			vertices: VertexBuffer::new(&display, &teapot::VERTICES).unwrap(),
+			normals: VertexBuffer::new(&display, &teapot::NORMALS).unwrap(),
+			indices: IndexBuffer::new(&display, TrianglesList, &teapot::INDICES).unwrap(),
 			model_matrix: [
 				[scale,	0.0,	0.0,	0.0],
 				[0.0,	scale,	0.0,	0.0],
@@ -72,10 +73,10 @@ fn main() {
 	let mut perspective = display_math::perspective_matrix(1, 1, fov);
 
 	let mut camera = display_math::Camera {
-		loc_x: 5.0,
+		loc_x: -5.0,
 		loc_y: 0.0,
 		loc_z: 0.0,
-		dir_x: -1.0,
+		dir_x: 1.0,
 		dir_y: 0.0,
 		dir_z: 0.0
 	};
@@ -144,10 +145,10 @@ fn main() {
 					movement.right = false,
 				// Space:
 				Event::KeyboardInput(ElementState::Released, 65, _) => {
-					camera.loc_x = 2.0;
+					camera.loc_x = -5.0;
 					camera.loc_y = 0.0;
 					camera.loc_z = 0.0;
-					camera.dir_x = -1.0;
+					camera.dir_x = 1.0;
 					camera.dir_y = 0.0;
 					camera.dir_z = 0.0;
 				}
@@ -205,9 +206,9 @@ struct MovementState {
 }
 
 struct Object {
-	vertices: glium::VertexBuffer<teapot::Vertex>,
-	normals: glium::VertexBuffer<teapot::Normal>,
-	indices: glium::IndexBuffer<u16>,
+	vertices: VertexBuffer<teapot::Vertex>,
+	normals: VertexBuffer<teapot::Normal>,
+	indices: IndexBuffer<u16>,
 	model_matrix: [[f32; 4]; 4]
 }
 
