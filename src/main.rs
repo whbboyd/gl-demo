@@ -14,16 +14,17 @@ mod teapot;
 mod display_math;
 mod shader_source;
 
+use env_logger::LogBuilder;
 use glium::{Depth, DisplayBuild, DrawParameters, Program, Surface};
 use glium::{VertexBuffer, IndexBuffer};
 use glium::draw_parameters::{DepthTest,BackfaceCullingMode};
 use glium::glutin::{ElementState, Event, WindowBuilder};
 use glium::index::PrimitiveType::TrianglesList;
-use time::PreciseTime;
+use log::{LogLevel, LogRecord};
+use time::{now, PreciseTime};
 
 fn main() {
-	// TODO: I don't particularly like this backend, find/write something better
-	env_logger::init().unwrap();
+	init_log();
 
 	info!("Starting demo...");
 
@@ -219,3 +220,16 @@ struct Object {
 	model_matrix: [[f32; 4]; 4]
 }
 
+fn init_log() {
+	let mut builder = LogBuilder::new();
+	builder.filter(None, LogLevel::Info.to_log_level_filter());
+	builder.format(|record: &LogRecord| {
+		format!("[{}] [{} {}:{}] [{}] {}\n",
+			now().rfc3339(),
+			record.location().module_path(),
+			record.location().file(),
+			record.location().line(),
+			record.level(),
+			record.args()) } );
+	builder.init().unwrap();
+}

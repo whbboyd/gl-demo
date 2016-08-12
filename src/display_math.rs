@@ -72,7 +72,7 @@ pub fn handle_mouse_move(window: &Window, camera: &mut Camera, x: i32, y: i32) -
 	let dx = w/2 - x;
 	let dy = h/2 - y;
 	if dx.abs() > 200 || dy.abs() > 200 {
-		println!("Skipping camera move due to large delta: {}, {}", dx, dy);
+		info!("Skipping camera move due to large delta: {}, {}", dx, dy);
 		return;
 	}
 
