@@ -1,5 +1,3 @@
-//mod display_math {
-
 extern crate glium;
 use glium::glutin::Window;
 

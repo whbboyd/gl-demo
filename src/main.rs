@@ -6,13 +6,11 @@ extern crate env_logger;
 
 extern crate time;
 
-// This is the hardcoded Utah Teapot model from
-// https://tomaka.github.io/glium/book/tuto-07-teapot.rs
-#[path = "tuto-07-teapot.rs"]
-mod teapot;
-
 mod display_math;
+mod geometry;
+mod models;
 mod shader_source;
+mod teapot;
 
 use env_logger::LogBuilder;
 use glium::{Depth, DisplayBuild, DrawParameters, Program, Surface};
@@ -54,21 +52,30 @@ fn main() {
 
 	info!("Building world...");
 	let mut objects = Vec::new();
-	for x in 0..3 { for y in 0..3 { for z in 0..3 {
+	for x in 0u8..3 { for y in 0u8..3 { for z in 0u8..3 {
 		let obx = x as f32 * 1.5;
 		let oby = y as f32 * 1.5;
 		let obz = z as f32 * 1.5;
 		let scale = 0.005 + (obx + oby + obz) / 1500.0;
 		objects.push(Object {
-			vertices: VertexBuffer::new(&display, &teapot::VERTICES).unwrap(),
-			normals: VertexBuffer::new(&display, &teapot::NORMALS).unwrap(),
-			indices: IndexBuffer::new(&display, TrianglesList, &teapot::INDICES).unwrap(),
+			vertices: VertexBuffer::new(&display, &models::teapot_vertices).unwrap(),
+			normals: VertexBuffer::new(&display, &models::teapot_normals).unwrap(),
+			indices: IndexBuffer::new(&display, TrianglesList, &models::teapot_indices).unwrap(),
 			model_matrix: [
 				[scale,	0.0,	0.0,	0.0],
 				[0.0,	scale,	0.0,	0.0],
 				[0.0,	0.0,	scale,	0.0],
 				[obx,	oby,	obz,	1.0] ] } );
 	} } };
+	objects.push(Object {
+		vertices: VertexBuffer::new(&display, &models::floor_vertices).unwrap(),
+		normals: VertexBuffer::new(&display, &models::floor_normals).unwrap(),
+		indices: IndexBuffer::new(&display, TrianglesList, &models::floor_indices).unwrap(),
+		model_matrix: [
+			[999.0,	0.0,	0.0,	0.0],
+			[0.0,	999.0,	0.0,	0.0],
+			[0.0,	0.0,	999.0,	0.0],
+			[0.0,	-1.0,	0.0,	1.0] ] } );
 
 	let light = [-1.0, 0.4, 0.9f32];
 
@@ -171,12 +178,10 @@ fn main() {
 
 		if movement.forward {
 			camera.loc_x += camera.dir_x * 0.05;
-			camera.loc_y += camera.dir_y * 0.05;
 			camera.loc_z += camera.dir_z * 0.05;
 		}
 		if movement.backward {
 			camera.loc_x -= camera.dir_x * 0.05;
-			camera.loc_y -= camera.dir_y * 0.05;
 			camera.loc_z -= camera.dir_z * 0.05;
 		}
 		if movement.left {
@@ -214,8 +219,8 @@ struct MovementState {
 }
 
 struct Object {
-	vertices: VertexBuffer<teapot::Vertex>,
-	normals: VertexBuffer<teapot::Normal>,
+	vertices: VertexBuffer<geometry::Vertex>,
+	normals: VertexBuffer<geometry::Normal>,
 	indices: IndexBuffer<u16>,
 	model_matrix: [[f32; 4]; 4]
 }
@@ -224,7 +229,7 @@ fn init_log() {
 	let mut builder = LogBuilder::new();
 	builder.filter(None, LogLevel::Info.to_log_level_filter());
 	builder.format(|record: &LogRecord| {
-		format!("[{}] [{} {}:{}] [{}] {}\n",
+		format!("[{}] [{} {}:{}] [{}] {}",
 			now().rfc3339(),
 			record.location().module_path(),
 			record.location().file(),
