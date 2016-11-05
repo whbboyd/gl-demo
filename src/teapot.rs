@@ -1,5 +1,5 @@
 
-use geometry::{Vertex,Normal};
+use geometry::{Material ,Normal, Vertex};
 
 pub const VERTICES: [Vertex; 531] = [
     Vertex { position: (0.0, 0.0, 0.0) },   // dummy vector because in the original model indices
@@ -2097,3 +2097,8 @@ pub const INDICES: [u16; 3072] = [
     470, 469, 529,
     529, 530, 470u16,
 ];
+
+pub const MATERIAL: Material = Material {
+	light: (0.1, 0.7, 0.1),
+	dark: (0.0, 0.2, 0.0),
+};

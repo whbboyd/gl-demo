@@ -57,7 +57,7 @@ fn main() {
 		let oby = y as f32 * 1.5;
 		let obz = z as f32 * 1.5;
 		let scale = 0.005 + (obx + oby + obz) / 1500.0;
-		objects.push(Object {
+		objects.push(geometry::Object {
 			vertices: VertexBuffer::new(&display, &models::teapot_vertices).unwrap(),
 			normals: VertexBuffer::new(&display, &models::teapot_normals).unwrap(),
 			indices: IndexBuffer::new(&display, TrianglesList, &models::teapot_indices).unwrap(),
@@ -65,9 +65,10 @@ fn main() {
 				[scale,	0.0,	0.0,	0.0],
 				[0.0,	scale,	0.0,	0.0],
 				[0.0,	0.0,	scale,	0.0],
-				[obx,	oby,	obz,	1.0] ] } );
+				[obx,	oby,	obz,	1.0] ],
+			material: models::teapot_mat } );
 	} } };
-	objects.push(Object {
+	objects.push(geometry::Object {
 		vertices: VertexBuffer::new(&display, &models::floor_vertices).unwrap(),
 		normals: VertexBuffer::new(&display, &models::floor_normals).unwrap(),
 		indices: IndexBuffer::new(&display, TrianglesList, &models::floor_indices).unwrap(),
@@ -75,7 +76,8 @@ fn main() {
 			[999.0,	0.0,	0.0,	0.0],
 			[0.0,	999.0,	0.0,	0.0],
 			[0.0,	0.0,	999.0,	0.0],
-			[0.0,	-1.0,	0.0,	1.0] ] } );
+			[0.0,	-1.0,	0.0,	1.0] ],
+		material: models::floor_mat } );
 
 	let light = [-1.0, 0.4, 0.9f32];
 
@@ -124,7 +126,9 @@ fn main() {
 					model_matrix: object.model_matrix,
 					view_matrix: view,
 					perspective_matrix: perspective,
-					u_light: light},
+					u_light: light,
+					u_mat_light: object.material.light,
+					u_mat_dark: object.material.dark},
 				&params).unwrap();
 		}
 
@@ -216,13 +220,6 @@ struct MovementState {
 	backward: bool,
 	left: bool,
 	right: bool
-}
-
-struct Object {
-	vertices: VertexBuffer<geometry::Vertex>,
-	normals: VertexBuffer<geometry::Normal>,
-	indices: IndexBuffer<u16>,
-	model_matrix: [[f32; 4]; 4]
 }
 
 fn init_log() {

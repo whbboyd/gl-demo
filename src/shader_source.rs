@@ -23,14 +23,15 @@ pub static VERTEX_SHADER_SRC: &'static str = r#"
 pub static FRAGMENT_SHADER_SRC: &'static str = r#"
 		#version 120
 
+		uniform vec3 u_mat_light;
+		uniform vec3 u_mat_dark;
+
 		varying vec3 v_normal;
 		varying vec3 v_light;
 
 		void main(void) {
 			float brightness = dot(normalize(v_normal), normalize(v_light));
-			vec3 dark_color = vec3(0.0, 0.2, 0.0);
-			vec3 regular_color = vec3(0.1, 0.7, 0.1);
-			gl_FragColor = vec4(mix(dark_color, regular_color, brightness), 1.0);
+			gl_FragColor = vec4(mix(u_mat_dark, u_mat_light, brightness), 1.0);
 		}
 	"#;
 
