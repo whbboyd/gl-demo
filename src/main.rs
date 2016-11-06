@@ -3,8 +3,8 @@ extern crate glium;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
-
 extern crate time;
+extern crate wavefront_obj;
 
 mod display_math;
 mod geometry;
@@ -19,10 +19,14 @@ use glium::draw_parameters::{DepthTest,BackfaceCullingMode};
 use glium::glutin::{ElementState, Event, WindowBuilder};
 use glium::index::PrimitiveType::TrianglesList;
 use log::{LogLevel, LogRecord};
+use std::fs::File;
 use time::{now, PreciseTime};
 
 fn main() {
 	init_log();
+
+	let mut file = File::open("data/floor.obj").unwrap();
+	error!("{:?}", models::load_model(&mut file));
 
 	info!("Starting demo...");
 
@@ -215,6 +219,7 @@ fn main() {
 	info!("Program loop ended, exiting...");
 }
 
+#[derive(Debug)]
 struct MovementState {
 	forward: bool,
 	backward: bool,

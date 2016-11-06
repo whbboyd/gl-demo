@@ -1,4 +1,8 @@
-use geometry::{Material, Normal, Vertex};
+use geometry::{Material, Normal, Object, Vertex};
+use std::io;
+use std::io::Read;
+use wavefront_obj::ParseError;
+use wavefront_obj::obj;
 
 // This is the hardcoded Utah Teapot model from
 // https://tomaka.github.io/glium/book/tuto-07-teapot.rs
@@ -36,3 +40,26 @@ pub const FLOOR_MATERIAL: Material = Material {
 	dark: (0.25, 0.25, 0.25),
 };
 
+#[derive(Debug)]
+pub enum LoadModelError {
+	IOError(io::Error),
+	ParseError(ParseError),
+	SomeOtherError(String)
+}
+
+pub fn load_model(read: &mut Read) -> Result<Object, LoadModelError> {
+	let mut object_str = String::new();
+	try!{
+		read.read_to_string(&mut object_str)
+		.or_else(|e| Err(LoadModelError::IOError(e)))
+	};
+	let loaded_object = try!{
+		obj::parse(object_str.into())
+		.or_else(|e| Err(LoadModelError::ParseError(e)))
+	};
+
+	error!("{:?}", loaded_object);
+
+	Err(LoadModelError::SomeOtherError("Not implemented yet!".to_string()))
+
+}
