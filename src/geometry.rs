@@ -23,7 +23,7 @@ pub struct Object {
 	pub material: Material
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Material {
 	pub light: (f32, f32, f32),
 	pub dark: (f32, f32, f32)

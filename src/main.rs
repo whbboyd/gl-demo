@@ -25,8 +25,8 @@ use time::{now, PreciseTime};
 fn main() {
 	init_log();
 
-	let mut file = File::open("data/floor.obj").unwrap();
-	error!("{:?}", models::load_model(&mut file));
+	let mut file = File::open("data/wt_teapot.obj").unwrap();
+	let teapot = models::load_model(&mut file).unwrap();
 
 	info!("Starting demo...");
 
@@ -60,17 +60,17 @@ fn main() {
 		let obx = x as f32 * 1.5;
 		let oby = y as f32 * 1.5;
 		let obz = z as f32 * 1.5;
-		let scale = 0.005 + (obx + oby + obz) / 1500.0;
+		let scale = 0.5 + (obx + oby + obz) / 30.0;
 		objects.push(geometry::Object {
-			vertices: VertexBuffer::new(&display, &models::teapot_vertices).unwrap(),
-			normals: VertexBuffer::new(&display, &models::teapot_normals).unwrap(),
-			indices: IndexBuffer::new(&display, TrianglesList, &models::teapot_indices).unwrap(),
+			vertices: VertexBuffer::new(&display, teapot.vertices.as_ref()).unwrap(),
+			normals: VertexBuffer::new(&display, teapot.normals.as_ref()).unwrap(),
+			indices: IndexBuffer::new(&display, TrianglesList, teapot.indices.as_ref()).unwrap(),
 			model_matrix: [
 				[scale,	0.0,	0.0,	0.0],
 				[0.0,	scale,	0.0,	0.0],
 				[0.0,	0.0,	scale,	0.0],
 				[obx,	oby,	obz,	1.0] ],
-			material: models::teapot_mat } );
+			material: teapot.material.clone() } );
 	} } };
 	objects.push(geometry::Object {
 		vertices: VertexBuffer::new(&display, &models::floor_vertices).unwrap(),
