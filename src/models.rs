@@ -6,9 +6,9 @@ use std::io::Read;
 use wavefront_obj::{ParseError, obj, mtl};
 
 const DEFAULT_MAT: Material = Material {
+	ambient: (0.0, 0.0, 0.0),
+	diffuse: (1.0, 0.0, 1.0),
 	specular: (0.0, 1.0, 0.0),
-	light: (1.0, 0.0, 1.0),
-	dark: (0.0, 0.0, 0.0),
 };
 
 
@@ -106,9 +106,9 @@ pub fn load_mats(read: &mut Read) -> Result<HashMap<String, Material>, LoadModel
 impl<'a> From<&'a mtl::Material> for Material {
 	fn from(mat: &mtl::Material) -> Self {
 		Material {
-			specular: color_conv(mat.color_specular),
-			light: color_conv(mat.color_diffuse),
-			dark: color_conv(mat.color_ambient)
+			ambient: color_conv(mat.color_ambient),
+			diffuse: color_conv(mat.color_diffuse),
+			specular: color_conv(mat.color_specular)
 		}
 	}
 }

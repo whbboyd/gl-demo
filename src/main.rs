@@ -132,8 +132,9 @@ fn main() {
 					view_matrix: view,
 					perspective_matrix: perspective,
 					u_light: light,
-					u_mat_light: object.material.light,
-					u_mat_dark: object.material.dark},
+					u_mat_ambient: object.material.ambient,
+					u_mat_diffuse: object.material.diffuse,
+					u_mat_specular: object.material.specular},
 				&params).unwrap();
 		}
 
