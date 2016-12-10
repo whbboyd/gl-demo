@@ -25,6 +25,7 @@ pub struct Object {
 
 #[derive(Debug, Clone)]
 pub struct Material {
+	pub specular: (f32, f32, f32),
 	pub light: (f32, f32, f32),
 	pub dark: (f32, f32, f32)
 }

@@ -1,0 +1,15 @@
+newmtl Teapot
+Ns 1.0
+Ka 0.0 0.2 0.0
+Kd 0.1 0.7 0.1
+Ks 1.0 1.0 1.0
+d 1.0
+illum 1
+newmtl Floor
+Ns 0.0
+Ka 0.25 0.25 0.25
+Kd 0.75 0.75 0.75
+Ks 0.0 0.0 0.0
+d 1.0
+illum 1
+

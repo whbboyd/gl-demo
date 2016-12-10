@@ -10,7 +10,6 @@ mod display_math;
 mod geometry;
 mod models;
 mod shader_source;
-mod teapot;
 
 use env_logger::LogBuilder;
 use glium::{Depth, DisplayBuild, DrawParameters, Program, Surface};
@@ -24,11 +23,13 @@ use time::{now, PreciseTime};
 
 fn main() {
 	init_log();
+	info!("Starting demo...");
 
+	info!("Loading models...");
 	let mut file = File::open("data/wt_teapot.obj").unwrap();
 	let teapot = models::load_model(&mut file).unwrap();
-
-	info!("Starting demo...");
+	let mut file = File::open("data/floor.obj").unwrap();
+	let floor = models::load_model(&mut file).unwrap();
 
 	info!("Initializing display...");
 	let display = WindowBuilder::new()
@@ -73,15 +74,15 @@ fn main() {
 			material: teapot.material.clone() } );
 	} } };
 	objects.push(geometry::Object {
-		vertices: VertexBuffer::new(&display, &models::floor_vertices).unwrap(),
-		normals: VertexBuffer::new(&display, &models::floor_normals).unwrap(),
-		indices: IndexBuffer::new(&display, TrianglesList, &models::floor_indices).unwrap(),
+		vertices: VertexBuffer::new(&display, floor.vertices.as_ref()).unwrap(),
+		normals: VertexBuffer::new(&display, floor.normals.as_ref()).unwrap(),
+		indices: IndexBuffer::new(&display, TrianglesList, floor.indices.as_ref()).unwrap(),
 		model_matrix: [
 			[999.0,	0.0,	0.0,	0.0],
 			[0.0,	999.0,	0.0,	0.0],
 			[0.0,	0.0,	999.0,	0.0],
 			[0.0,	-1.0,	0.0,	1.0] ],
-		material: models::floor_mat } );
+		material: floor.material.clone()} );
 
 	let light = [-1.0, 0.4, 0.9f32];
 
@@ -95,7 +96,7 @@ fn main() {
 
 	let mut camera = display_math::Camera {
 		loc_x: -5.0,
-		loc_y: 0.0,
+		loc_y: 1.0,
 		loc_z: 0.0,
 		dir_x: 1.0,
 		dir_y: 0.0,
@@ -169,7 +170,7 @@ fn main() {
 				// Space:
 				Event::KeyboardInput(ElementState::Released, 65, _) => {
 					camera.loc_x = -5.0;
-					camera.loc_y = 0.0;
+					camera.loc_y = 1.0;
 					camera.loc_z = 0.0;
 					camera.dir_x = 1.0;
 					camera.dir_y = 0.0;
