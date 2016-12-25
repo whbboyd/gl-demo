@@ -34,16 +34,15 @@ pub static FRAGMENT_SHADER_SRC: &'static str = r#"
 	varying vec3 v_position;
 
 	void main(void) {
-		float diffuse = max(dot(normalize(v_normal), normalize(v_light)), 0.0);
+
+		float brightness = dot(normalize(v_normal), normalize(v_light));
+		vec3 matte_color = mix(u_mat_ambient, u_mat_diffuse, brightness);
 
 		vec3 camera_dir = normalize(-v_position);
 		vec3 half_direction = normalize(normalize(v_light) + camera_dir);
 		float specular = pow(max(dot(half_direction, normalize(v_normal)), 0.0), 64.0);
 
-		gl_FragColor = vec4(u_mat_ambient +
-				diffuse * u_mat_diffuse +
-				specular * u_mat_specular,
-				1.0);
+		gl_FragColor = vec4(matte_color + (specular * u_mat_specular), 1.0);
 	}
 	"#;
 
