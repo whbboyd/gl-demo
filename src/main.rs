@@ -9,7 +9,6 @@ extern crate wavefront_obj;
 mod display_math;
 mod geometry;
 mod models;
-mod shader_source;
 
 use env_logger::LogBuilder;
 use glium::{Depth, DisplayBuild, DrawParameters, Program, Surface};
