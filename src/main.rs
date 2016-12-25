@@ -19,6 +19,7 @@ use glium::glutin::{ElementState, Event, WindowBuilder};
 use glium::index::PrimitiveType::TrianglesList;
 use log::{LogLevel, LogRecord};
 use std::fs::File;
+use std::io::Read;
 use time::{now, PreciseTime};
 
 fn main() {
@@ -37,12 +38,17 @@ fn main() {
 		.with_vsync()
 		.build_glium().unwrap();
 
+	info!("Loading shaders...");
+	let mut file = File::open("data/vertex_shader.vert").unwrap();
+	let mut vertex_shader = String::new();
+	file.read_to_string(&mut vertex_shader).unwrap();
+	let mut file = File::open("data/fragment_shader.frag").unwrap();
+	let mut fragment_shader = String::new();
+	file.read_to_string(&mut fragment_shader).unwrap();
+
 	info!("Compiling shaders...");
 	let program = Program::from_source(
-		&display,
-		shader_source::VERTEX_SHADER_SRC,
-		shader_source::FRAGMENT_SHADER_SRC,
-		None).unwrap();
+		&display, &vertex_shader, &fragment_shader, None).unwrap();
 
 	info!("Preparing environment...");
 	let params = DrawParameters {
