@@ -119,19 +119,19 @@ fn main() {
 		can_jump: 0
 	};
 
-	let mut character = physics::CharacterState {
-		loc: [-5.0, 0.0, 0.0],
-		vel: [0.0, 0.0, 0.0],
-		max_speed: CHAR_MAX_SPEED,
-		decel: CHAR_DECEL,
-		max_jump: CHAR_MAX_JUMP,
-		gravity: CHAR_GRAVITY
-	};
+	let mut character = physics::CharacterState::new(
+		[-5.0, 0.0, 0.0],
+		[0.0, 0.0, 0.0],
+		CHAR_MAX_SPEED,
+		CHAR_DECEL,
+		CHAR_MAX_JUMP,
+		CHAR_GRAVITY);
 
 	let mut camera = display_math::Camera {
-		loc: [character.loc[0], character.loc[1] + 0.5, character.loc[2]],
+		loc: character.loc().clone(),
 		dir: [1.0, 0.0, 0.0]
 	};
+	camera.loc[1] += 0.5;
 
 	// Main program loop
 	info!("Starting program loop...");
@@ -211,9 +211,8 @@ fn main() {
 		physics::do_char_movement(&mut character, &camera.dir, &mut movement);
 
 		// Update camera
-		camera.loc[0] = character.loc[0];
-		camera.loc[1] = character.loc[1] + 0.5;
-		camera.loc[2] = character.loc[2];
+		camera.loc = character.loc().clone();
+		camera.loc[1] += 0.5;
 
 		// Wait for end of frame
 		// We enabled vsync when creating the window, so this happens automatically.

@@ -63,11 +63,31 @@ pub fn do_char_movement(character: &mut CharacterState,
 
 #[derive(Debug)]
 pub struct CharacterState {
-	pub loc: [f32; 3],
-	pub vel: [f32; 3],
-	pub max_speed: f32,
-	pub decel: f32,
-	pub max_jump: f32,
-	pub gravity: f32
+	loc: [f32; 3],
+	vel: [f32; 3],
+	max_speed: f32,
+	decel: f32,
+	max_jump: f32,
+	gravity: f32
 }
+impl CharacterState {
+	pub fn new(loc: [f32; 3],
+			vel: [f32; 3],
+			max_speed: f32,
+			decel: f32,
+			max_jump: f32,
+			gravity: f32) -> CharacterState {
+	CharacterState {
+		loc: loc,
+		vel: vel,
+		max_speed: max_speed,
+		decel: decel,
+		max_jump: max_jump,
+		gravity: gravity}
+	}
 
+	pub fn loc(&self) -> &[f32; 3] {
+		&self.loc
+	}
+
+}
