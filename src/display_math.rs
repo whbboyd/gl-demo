@@ -1,13 +1,10 @@
 extern crate glium;
 use glium::glutin::Window;
 
+#[derive(Debug)]
 pub struct Camera {
-	pub loc_x: f32,
-	pub loc_y: f32,
-	pub loc_z: f32,
-	pub dir_x: f32,
-	pub dir_y: f32,
-	pub dir_z: f32
+	pub loc: [f32; 3],
+	pub dir: [f32; 3]
 }
 
 pub fn view_matrix(position: &[f32; 3], direction: &[f32; 3], up: &[f32; 3]) -> [[f32; 4]; 4] {
@@ -76,17 +73,15 @@ pub fn handle_mouse_move(window: &Window, camera: &mut Camera, x: i32, y: i32) -
 
 	// Turn dx into a rotation on the xz plane
 	let dh = dx as f32 * 0.005;
-	let new_dir_x = camera.dir_x * dh.cos() - camera.dir_z * dh.sin();
-	let new_dir_z = camera.dir_x * dh.sin() + camera.dir_z * dh.cos();
-	camera.dir_x = new_dir_x;
-	camera.dir_z = new_dir_z;
+	camera.dir[0] = camera.dir[0] * dh.cos() - camera.dir[2] * dh.sin();
+	camera.dir[2] = camera.dir[0] * dh.sin() + camera.dir[2] * dh.cos();
 
 	// Turn dy into a rotation on the xy plane
 	// (not really the xy plane; it's the plane determined by xz and [0,1,0])
 	// Clamp dir_y + dy
 	// (the camera will flip if you cross zenith or nadir, which is super confusing)
 	//FIXME: This more-or-less works, but is probably^Wdefinitely wrong.
-	camera.dir_y += dy as f32 * 0.005;
+	camera.dir[1] += dy as f32 * 0.005;
 
 }
 

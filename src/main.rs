@@ -9,6 +9,7 @@ extern crate wavefront_obj;
 mod display_math;
 mod geometry;
 mod models;
+mod physics;
 
 use env_logger::LogBuilder;
 use glium::{Depth, DisplayBuild, DrawParameters, Program, Surface};
@@ -21,14 +22,24 @@ use std::fs::File;
 use std::io::Read;
 use time::{now, PreciseTime};
 
+const TEAPOT_PATH: &'static str = "data/wt_teapot.obj";
+const FLOOR_PATH: &'static str = "data/floor.obj";
+const VERTEX_SHADER_PATH: &'static str = "data/vertex_shader.vert";
+const FRAGMENT_SHADER_PATH: &'static str = "data/fragment_shader.frag";
+
+const CHAR_MAX_SPEED: f32 = 0.2;
+const CHAR_DECEL: f32 = 0.05;
+const CHAR_MAX_JUMP: f32 = 0.2;
+const CHAR_GRAVITY: f32 = 0.02;
+
 fn main() {
 	init_log();
 	info!("Starting demo...");
 
 	info!("Loading models...");
-	let mut file = File::open("data/wt_teapot.obj").unwrap();
+	let mut file = File::open(TEAPOT_PATH).unwrap();
 	let teapot = models::load_model(&mut file).unwrap();
-	let mut file = File::open("data/floor.obj").unwrap();
+	let mut file = File::open(FLOOR_PATH).unwrap();
 	let floor = models::load_model(&mut file).unwrap();
 
 	info!("Initializing display...");
@@ -38,10 +49,10 @@ fn main() {
 		.build_glium().unwrap();
 
 	info!("Loading shaders...");
-	let mut file = File::open("data/vertex_shader.vert").unwrap();
+	let mut file = File::open(VERTEX_SHADER_PATH).unwrap();
 	let mut vertex_shader = String::new();
 	file.read_to_string(&mut vertex_shader).unwrap();
-	let mut file = File::open("data/fragment_shader.frag").unwrap();
+	let mut file = File::open(FRAGMENT_SHADER_PATH).unwrap();
 	let mut fragment_shader = String::new();
 	file.read_to_string(&mut fragment_shader).unwrap();
 
@@ -99,19 +110,27 @@ fn main() {
 
 	let mut perspective = display_math::perspective_matrix(1, 1, fov);
 
-	let mut camera = display_math::Camera {
-		loc_x: -5.0,
-		loc_y: 1.0,
-		loc_z: 0.0,
-		dir_x: 1.0,
-		dir_y: 0.0,
-		dir_z: 0.0
-	};
 	let mut movement = MovementState {
 		forward: false,
 		backward: false,
 		left: false,
-		right: false
+		right: false,
+		jumping: false,
+		can_jump: 0
+	};
+
+	let mut character = physics::CharacterState {
+		loc: [-5.0, 0.0, 0.0],
+		vel: [0.0, 0.0, 0.0],
+		max_speed: CHAR_MAX_SPEED,
+		decel: CHAR_DECEL,
+		max_jump: CHAR_MAX_JUMP,
+		gravity: CHAR_GRAVITY
+	};
+
+	let mut camera = display_math::Camera {
+		loc: [character.loc[0], character.loc[1] + 0.5, character.loc[2]],
+		dir: [1.0, 0.0, 0.0]
 	};
 
 	// Main program loop
@@ -123,8 +142,8 @@ fn main() {
 		target.clear_color_and_depth((0.5, 0.5, 1.0, 1.0), 1.0);
 
 		let view = display_math::view_matrix(
-			&[camera.loc_x, camera.loc_y, camera.loc_z],
-			&[camera.dir_x, camera.dir_y, camera.dir_z],
+			&camera.loc,
+			&camera.dir,
 			&[0.0, 1.0, 0.0]);
 
 		for object in objects.iter() {
@@ -174,13 +193,11 @@ fn main() {
 				Event::KeyboardInput(ElementState::Released, 40, _) =>
 					movement.right = false,
 				// Space:
+				Event::KeyboardInput(ElementState::Pressed, 65, _) =>
+					movement.jumping = true,
 				Event::KeyboardInput(ElementState::Released, 65, _) => {
-					camera.loc_x = -5.0;
-					camera.loc_y = 1.0;
-					camera.loc_z = 0.0;
-					camera.dir_x = 1.0;
-					camera.dir_y = 0.0;
-					camera.dir_z = 0.0;
+					movement.jumping = false;
+					movement.can_jump = 0;
 				}
 				Event::MouseMoved(x, y) =>
 					display_math::handle_mouse_move(
@@ -191,22 +208,12 @@ fn main() {
 			}
 		}
 
-		if movement.forward {
-			camera.loc_x += camera.dir_x * 0.05;
-			camera.loc_z += camera.dir_z * 0.05;
-		}
-		if movement.backward {
-			camera.loc_x -= camera.dir_x * 0.05;
-			camera.loc_z -= camera.dir_z * 0.05;
-		}
-		if movement.left {
-			camera.loc_x -= camera.dir_z * 0.05;
-			camera.loc_z += camera.dir_x * 0.05;
-		}
-		if movement.right {
-			camera.loc_x += camera.dir_z * 0.05;
-			camera.loc_z -= camera.dir_x * 0.05;
-		}
+		physics::do_char_movement(&mut character, &camera.dir, &mut movement);
+
+		// Update camera
+		camera.loc[0] = character.loc[0];
+		camera.loc[1] = character.loc[1] + 0.5;
+		camera.loc[2] = character.loc[2];
 
 		// Wait for end of frame
 		// We enabled vsync when creating the window, so this happens automatically.
@@ -227,11 +234,13 @@ fn main() {
 }
 
 #[derive(Debug)]
-struct MovementState {
-	forward: bool,
-	backward: bool,
-	left: bool,
-	right: bool
+pub struct MovementState {
+	pub forward: bool,
+	pub backward: bool,
+	pub left: bool,
+	pub right: bool,
+	pub jumping: bool,
+	pub can_jump: u8
 }
 
 fn init_log() {
