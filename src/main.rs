@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate glium;
+extern crate image;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
@@ -7,16 +8,13 @@ extern crate time;
 extern crate wavefront_obj;
 
 mod display_math;
-mod geometry;
-mod models;
+mod model;
 mod physics;
 
 use env_logger::LogBuilder;
 use glium::{Depth, DisplayBuild, DrawParameters, Program, Surface};
-use glium::{VertexBuffer, IndexBuffer};
 use glium::draw_parameters::{DepthTest,BackfaceCullingMode};
-use glium::glutin::{ElementState, Event, WindowBuilder};
-use glium::index::PrimitiveType::TrianglesList;
+use glium::glutin::{Api, ElementState, Event, GlRequest, WindowBuilder};
 use log::{LogLevel, LogRecord};
 use std::fs::File;
 use std::io::Read;
@@ -36,16 +34,20 @@ fn main() {
 	init_log();
 	info!("Starting demo...");
 
-	info!("Loading models...");
+	info!("Loading models and textures...");
+	let library = model::mem::ModelLibrary::new();
 	let mut file = File::open(TEAPOT_PATH).unwrap();
-	let teapot = models::load_model(&mut file).unwrap();
+	let teapot = library.load_model(&mut file);
 	let mut file = File::open(FLOOR_PATH).unwrap();
-	let floor = models::load_model(&mut file).unwrap();
+	let floor = library.load_model(&mut file);
 
 	info!("Initializing display...");
 	let display = WindowBuilder::new()
 		.with_depth_buffer(24)
 		.with_vsync()
+		//TODO What's the minimum version we can get away with?
+		//FIXME This isn't behaving as expected.
+		.with_gl(GlRequest::Specific(Api::OpenGl, (2, 1)))
 		.build_glium().unwrap();
 
 	info!("Loading shaders...");
@@ -78,27 +80,18 @@ fn main() {
 		let oby = y as f32 * 1.5;
 		let obz = z as f32 * 1.5;
 		let scale = 0.5 + (obx + oby + obz) / 30.0;
-		objects.push(geometry::Object {
-			vertices: VertexBuffer::new(&display, teapot.vertices.as_ref()).unwrap(),
-			normals: VertexBuffer::new(&display, teapot.normals.as_ref()).unwrap(),
-			indices: IndexBuffer::new(&display, TrianglesList, teapot.indices.as_ref()).unwrap(),
-			model_matrix: [
+		//TODO: This still duplicates geometry. We probably want a memory ModelLibrary, as well.
+		objects.push(model::gpu::Model::from_mem(&display, &teapot, [
 				[scale,	0.0,	0.0,	0.0],
 				[0.0,	scale,	0.0,	0.0],
 				[0.0,	0.0,	scale,	0.0],
-				[obx,	oby,	obz,	1.0] ],
-			material: teapot.material.clone() } );
+				[obx,	oby,	obz,	1.0] ],));
 	} } };
-	objects.push(geometry::Object {
-		vertices: VertexBuffer::new(&display, floor.vertices.as_ref()).unwrap(),
-		normals: VertexBuffer::new(&display, floor.normals.as_ref()).unwrap(),
-		indices: IndexBuffer::new(&display, TrianglesList, floor.indices.as_ref()).unwrap(),
-		model_matrix: [
+	objects.push(model::gpu::Model::from_mem(&display, &floor, [
 			[999.0,	0.0,	0.0,	0.0],
 			[0.0,	999.0,	0.0,	0.0],
 			[0.0,	0.0,	999.0,	0.0],
-			[0.0,	-1.0,	0.0,	1.0] ],
-		material: floor.material.clone()} );
+			[0.0,	-0.5,	0.0,	1.0] ],));
 
 	let light = [-1.0, 0.4, 0.9f32];
 
@@ -148,8 +141,8 @@ fn main() {
 
 		for object in objects.iter() {
 			target.draw(
-				(&object.vertices, &object.normals),
-				&object.indices,
+				(&object.geometry.vertices, &object.geometry.normals),
+				&object.geometry.indices,
 				&program,
 				&uniform! {
 					model_matrix: object.model_matrix,
@@ -199,6 +192,11 @@ fn main() {
 					movement.jumping = false;
 					movement.can_jump = 0;
 				}
+				// Enter:
+				Event::KeyboardInput(ElementState::Pressed, 36, _) => (),
+				Event::KeyboardInput(ElementState::Released, 36, _) =>
+					info!("\t{:?}\n\t{:?}\n\t{:?}\n\tSpeed: {}", camera, character, movement,
+						character.speed()),
 				Event::MouseMoved(x, y) =>
 					display_math::handle_mouse_move(
 						&display.get_window().unwrap(), &mut camera, x, y),

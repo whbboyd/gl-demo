@@ -1,24 +1,11 @@
-use geometry::{Material, Normal, Vertex};
+use glium::texture::RawImage2d;
+use image;
+use model::mem;
+use model::{Normal, Vertex};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
-use std::io::Read;
 use wavefront_obj::{ParseError, obj, mtl};
-
-const DEFAULT_MAT: Material = Material {
-	ambient: (0.0, 0.0, 0.0),
-	diffuse: (1.0, 0.0, 1.0),
-	specular: (0.0, 1.0, 0.0),
-};
-
-
-#[derive(Debug)]
-pub struct Model {
-	pub vertices: Vec<Vertex>,
-	pub normals: Vec<Normal>,
-	pub indices: Vec<u16>,
-	pub material: Material
-}
 
 #[derive(Debug)]
 pub enum LoadModelError {
@@ -26,7 +13,8 @@ pub enum LoadModelError {
 	ParseError(ParseError)
 }
 
-pub fn load_model(read: &mut Read) -> Result<Model, LoadModelError> {
+pub fn load_model(read: &mut io::Read) ->
+		Result<(mem::Geometry, mem::Material), LoadModelError> {
 	let mut object_str = String::new();
 	try!{
 		read.read_to_string(&mut object_str)
@@ -38,7 +26,7 @@ pub fn load_model(read: &mut Read) -> Result<Model, LoadModelError> {
 	};
 
 	let mats = loaded_object.material_library
-			.map(|fname| { load_mats(&mut File::open(fname).unwrap()).unwrap() } )
+			.map(|fname| load_mats(&mut File::open(fname).unwrap()).unwrap() )
 			.unwrap_or(HashMap::new());
 
 	let object = loaded_object.objects.pop().unwrap();
@@ -50,13 +38,12 @@ pub fn load_model(read: &mut Read) -> Result<Model, LoadModelError> {
 		.collect::<Vec<Normal>>();
 	let mut indices: Vec<u16> = Vec::new();
 	let mut normals: Vec<Normal> = Vec::new();
-	let mut mat: Material = DEFAULT_MAT;
+	let mut mat: mem::Material = mem::DEFAULT_MAT;
 	for geom in object.geometry {
 		mat = match geom.material_name {
 			Some(m) => mats.get(&m).unwrap_or_else(|| {
 				error!("Missing material: {:?}", &m);
-				&mat
-			}).clone(),
+				&mat }).clone(),
 			None => mat
 		};
 		for shape in geom.shapes {
@@ -78,14 +65,13 @@ pub fn load_model(read: &mut Read) -> Result<Model, LoadModelError> {
 		}
 	}
 
-	Ok(Model { vertices: vertices,
+	Ok( (mem::Geometry { vertices: vertices,
 			normals: normals,
-			indices: indices,
-			material: mat } )
-
+			indices: indices, },
+		mat) )
 }
 
-pub fn load_mats(read: &mut Read) -> Result<HashMap<String, Material>, LoadModelError> {
+pub fn load_mats(read: &mut io::Read) -> Result<HashMap<String, mem::Material>, LoadModelError> {
 	let mut mat_str = String::new();
 	try!{
 		read.read_to_string(&mut mat_str)
@@ -97,22 +83,36 @@ pub fn load_mats(read: &mut Read) -> Result<HashMap<String, Material>, LoadModel
 	};
 	let mut mats = HashMap::with_capacity(loaded_mats.materials.len());
 	for mat in loaded_mats.materials {
-		let converted_mat = Material::from(&mat);
+		let converted_mat = mem::Material::from(&mat);
 		mats.insert(mat.name, converted_mat);
 	}
 	Ok(mats)
 }
 
-impl<'a> From<&'a mtl::Material> for Material {
+impl <'a> From<&'a mtl::Material> for mem::Material {
 	fn from(mat: &mtl::Material) -> Self {
-		Material {
+		mem::Material {
 			ambient: color_conv(mat.color_ambient),
 			diffuse: color_conv(mat.color_diffuse),
-			specular: color_conv(mat.color_specular)
+			specular: color_conv(mat.color_specular),
+			texture: None
 		}
 	}
 }
 fn color_conv(color: mtl::Color) -> (f32, f32, f32) {
 	(color.r as f32, color.g as f32, color.b as f32)
+}
+
+#[derive(Debug)]
+pub enum LoadTextureError {
+	IOError(io::Error)
+}
+
+pub fn load_texture<T>(read: &mut T)
+		-> Result<RawImage2d<u8>, LoadTextureError>
+		where T: io::BufRead + io::Seek {
+	let image = image::load(read, image::PNG).unwrap().to_rgba();
+	let image_dimensions = image.dimensions();
+	Ok(RawImage2d::from_raw_rgba_reversed(image.into_raw(), image_dimensions))
 }
 

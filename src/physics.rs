@@ -47,7 +47,7 @@ pub fn do_char_movement(character: &mut CharacterState,
 	character.vel[2] *= multiplier;
 
 	// Gravity:
-	character.vel[1] -= 0.02;
+	character.vel[1] -= character.gravity;
 
 	// Update locations
 	character.loc[0] += character.vel[0];
@@ -88,6 +88,12 @@ impl CharacterState {
 
 	pub fn loc(&self) -> &[f32; 3] {
 		&self.loc
+	}
+
+	pub fn speed(&self) -> f32 {
+		f32::sqrt(self.vel[0] * self.vel[0] +
+			self.vel[1] * self.vel[1] +
+			self.vel[2] * self.vel[2])
 	}
 
 }

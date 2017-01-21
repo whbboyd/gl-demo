@@ -5,6 +5,9 @@ authors = ["Will Boyd <whboyd@wesleyan.edu>"]
 
 [dependencies]
 glium = "*"
+# Image 0.12+ depends on too new a version of Rust. We're using rustc 1.12.
+# (This was determined by trial and error, so way to go everyone involved for not documenting this stuff.)
+image = "0.11"
 time = "*"
 wavefront_obj = "*"
 

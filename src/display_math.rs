@@ -11,8 +11,7 @@ pub fn view_matrix(position: &[f32; 3], direction: &[f32; 3], up: &[f32; 3]) -> 
 
     let f = {
         let f = direction;
-        let len = f[0] * f[0] + f[1] * f[1] + f[2] * f[2];
-        let len = len.sqrt();
+        let len = f32::sqrt(f[0] * f[0] + f[1] * f[1] + f[2] * f[2]);
         [f[0] / len, f[1] / len, f[2] / len]
     };
 
@@ -77,11 +76,10 @@ pub fn handle_mouse_move(window: &Window, camera: &mut Camera, x: i32, y: i32) -
 	camera.dir[2] = camera.dir[0] * dh.sin() + camera.dir[2] * dh.cos();
 
 	// Turn dy into a rotation on the xy plane
-	// (not really the xy plane; it's the plane determined by xz and [0,1,0])
+	// (not really the xy plane; it's the plane determined by x and [0,1,0])
 	// Clamp dir_y + dy
-	// (the camera will flip if you cross zenith or nadir, which is super confusing)
+	// (otherwise the camera will flip if you cross zenith or nadir, which is super confusing)
 	//FIXME: This more-or-less works, but is probably^Wdefinitely wrong.
 	camera.dir[1] += dy as f32 * 0.005;
-
 }
 
