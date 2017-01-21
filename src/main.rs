@@ -74,24 +74,29 @@ fn main() {
 	};
 
 	info!("Building world...");
+	let gpu_teapot = model::gpu::Model::from_mem(&display, &teapot);
+	let gpu_floor = model::gpu::Model::from_mem(&display, &floor);
 	let mut objects = Vec::new();
 	for x in 0u8..3 { for y in 0u8..3 { for z in 0u8..3 {
 		let obx = x as f32 * 1.5;
 		let oby = y as f32 * 1.5;
 		let obz = z as f32 * 1.5;
 		let scale = 0.5 + (obx + oby + obz) / 30.0;
-		//TODO: This still duplicates geometry. We probably want a memory ModelLibrary, as well.
-		objects.push(model::gpu::Model::from_mem(&display, &teapot, [
-				[scale,	0.0,	0.0,	0.0],
-				[0.0,	scale,	0.0,	0.0],
-				[0.0,	0.0,	scale,	0.0],
-				[obx,	oby,	obz,	1.0] ],));
+		objects.push(model::gpu::ModelInstance {
+				model: &gpu_teapot,
+				model_matrix: [
+					[scale,	0.0,	0.0,	0.0],
+					[0.0,	scale,	0.0,	0.0],
+					[0.0,	0.0,	scale,	0.0],
+					[obx,	oby,	obz,	1.0] ], } );
 	} } };
-	objects.push(model::gpu::Model::from_mem(&display, &floor, [
+	objects.push(model::gpu::ModelInstance {
+		model: &gpu_floor,
+		model_matrix: [
 			[999.0,	0.0,	0.0,	0.0],
 			[0.0,	999.0,	0.0,	0.0],
 			[0.0,	0.0,	999.0,	0.0],
-			[0.0,	-0.5,	0.0,	1.0] ],));
+			[0.0,	-0.5,	0.0,	1.0] ], } );
 
 	let light = [-1.0, 0.4, 0.9f32];
 
@@ -141,17 +146,17 @@ fn main() {
 
 		for object in objects.iter() {
 			target.draw(
-				(&object.geometry.vertices, &object.geometry.normals),
-				&object.geometry.indices,
+				(&object.model.geometry.vertices, &object.model.geometry.normals),
+				&object.model.geometry.indices,
 				&program,
 				&uniform! {
 					model_matrix: object.model_matrix,
 					view_matrix: view,
 					perspective_matrix: perspective,
 					u_light: light,
-					u_mat_ambient: object.material.ambient,
-					u_mat_diffuse: object.material.diffuse,
-					u_mat_specular: object.material.specular},
+					u_mat_ambient: object.model.material.ambient,
+					u_mat_diffuse: object.model.material.diffuse,
+					u_mat_specular: object.model.material.specular},
 				&params).unwrap();
 		}
 

@@ -40,22 +40,23 @@ impl Material {
 	}
 }
 
-
 #[derive(Debug)]
 pub struct Model {
 	pub geometry: Geometry,
 	pub material: Material,
-	pub model_matrix: [[f32; 4]; 4],
 }
 impl Model {
-	pub fn from_mem(display: &Facade, model: &mem::Model, model_matrix: [[f32; 4]; 4]) ->
-			Model {
+	pub fn from_mem(display: &Facade, model: &mem::Model) -> Model {
 		Model {
 			geometry: Geometry::from_mem(display, model.geometry.as_ref()),
 			material: Material::from_mem(display, model.material.as_ref()),
-			model_matrix: model_matrix,
 		}
 	}
 }
 
+#[derive(Debug)]
+pub struct ModelInstance<'a> {
+	pub model: &'a Model,
+	pub model_matrix: [[f32; 4]; 4],
+}
 
