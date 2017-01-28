@@ -13,7 +13,7 @@ mod physics;
 
 use env_logger::LogBuilder;
 use glium::{Depth, DisplayBuild, DrawParameters, Program, Surface};
-use glium::draw_parameters::{DepthTest,BackfaceCullingMode};
+use glium::draw_parameters::{BackfaceCullingMode, DepthTest};
 use glium::glutin::{Api, ElementState, Event, GlRequest, WindowBuilder};
 use log::{LogLevel, LogRecord};
 use std::fs::File;
@@ -69,7 +69,7 @@ fn main() {
 			write: true,
 			.. Default::default()
 		},
-		backface_culling: BackfaceCullingMode::CullClockwise,
+		backface_culling: BackfaceCullingMode::CullCounterClockwise,
 		.. Default::default()
 	};
 
@@ -98,7 +98,8 @@ fn main() {
 			[0.0,	0.0,	999.0,	0.0],
 			[0.0,	-0.5,	0.0,	1.0] ], } );
 
-	let light = [-1.0, 0.4, 0.9f32];
+	let light_pos = [-1.0, 0.4, 0.9f32];
+	let light_color = [1.0, 1.0, 1.0f32];
 
 	let mut frame: u64 = 0;
 	let mut last_time = PreciseTime::now();
@@ -146,17 +147,18 @@ fn main() {
 
 		for object in objects.iter() {
 			target.draw(
-				(&object.model.geometry.vertices, &object.model.geometry.normals),
+				&object.model.geometry.vertices,
 				&object.model.geometry.indices,
 				&program,
 				&uniform! {
 					model_matrix: object.model_matrix,
 					view_matrix: view,
 					perspective_matrix: perspective,
-					u_light: light,
+					u_light_pos: light_pos,
+					u_light_color: light_color,
 					u_mat_ambient: object.model.material.ambient,
-					u_mat_diffuse: object.model.material.diffuse,
-					u_mat_specular: object.model.material.specular},
+					u_mat_specular: object.model.material.specular,
+					u_mat_texture: &object.model.material.texture,},
 				&params).unwrap();
 		}
 

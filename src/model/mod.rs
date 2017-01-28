@@ -4,15 +4,9 @@ pub mod mem;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Vertex {
-    pub position: (f32, f32, f32)
+    pub position: (f32, f32, f32),
+	pub normal: (f32, f32, f32),
+	pub tex_uv: (f32, f32),
 }
-
-implement_vertex!(Vertex, position);
-
-#[derive(Copy, Clone, Debug)]
-pub struct Normal {
-    pub normal: (f32, f32, f32)
-}
-
-implement_vertex!(Normal, normal);
+implement_vertex!(Vertex, position, normal, tex_uv);
 

@@ -1,20 +1,21 @@
-use model::{disk, Normal, Vertex};
+use model::{disk, Vertex};
 use std::cell::RefCell;
 use std::io::Read;
 use std::rc::Rc;
 
+
 // Magenta with green specular
-pub const DEFAULT_MAT: Material = Material {
-	ambient: (0.0, 0.0, 0.0),
-	diffuse: (1.0, 0.0, 1.0),
-	specular: (0.0, 1.0, 0.0),
-	texture: None,
-};
+pub fn default_mat() -> Material {
+	Material {
+		ambient: (0.0, 0.0, 0.0),
+		specular: (0.0, 1.0, 0.0),
+		texture: vec![vec![(255, 0, 255, 255)]],
+	}
+}
 
 #[derive(Debug)]
 pub struct Geometry {
 	pub vertices: Vec<Vertex>,
-	pub normals: Vec<Normal>,
 	//TODO: u16 limits model complexity fairly significantly. Will this cause problems?
 	pub indices: Vec<u16>,
 }
@@ -22,9 +23,8 @@ pub struct Geometry {
 #[derive(Clone, Debug)]
 pub struct Material {
 	pub ambient: (f32, f32, f32),
-	pub diffuse: (f32, f32, f32),
 	pub specular: (f32, f32, f32),
-	pub texture: Option<Vec<Vec<u32>>>,
+	pub texture: Vec<Vec<(u8, u8, u8, u8)>>,
 }
 
 #[derive(Debug)]
