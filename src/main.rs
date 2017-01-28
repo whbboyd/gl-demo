@@ -158,7 +158,11 @@ fn main() {
 					u_light_color: light_color,
 					u_mat_ambient: object.model.material.ambient,
 					u_mat_specular: object.model.material.specular,
-					u_mat_texture: &object.model.material.texture,},
+					u_mat_texture: object.model.material.texture
+							.sampled()
+							.magnify_filter(
+									::glium::uniforms::MagnifySamplerFilter::Nearest),
+					},
 				&params).unwrap();
 		}
 
