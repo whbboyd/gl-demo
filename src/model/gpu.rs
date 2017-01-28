@@ -30,7 +30,7 @@ impl Material {
 		Material {
 			ambient: src.ambient.clone(),
 			specular: src.specular.clone(),
-			texture: Texture2d::new(display, src.texture.clone()).unwrap(),
+			texture: Texture2d::with_mipmaps(display, src.texture.clone(), ::glium::texture::MipmapsOption::NoMipmap).unwrap(),
 		}
 	}
 }
