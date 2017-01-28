@@ -1,7 +1,7 @@
 use glium::backend::Facade;
 use glium::{IndexBuffer, VertexBuffer};
 use glium::index::PrimitiveType::TrianglesList;
-use glium::texture::Texture2d;
+use glium::texture::{MipmapsOption, Texture2d};
 use model::{mem, Vertex};
 
 #[derive(Debug)]
@@ -28,9 +28,12 @@ impl Material {
 	pub fn from_mem(display: &Facade, material: &mem::Material) -> Material {
 		let src = material.clone();
 		Material {
-			ambient: src.ambient.clone(),
-			specular: src.specular.clone(),
-			texture: Texture2d::with_mipmaps(display, src.texture.clone(), ::glium::texture::MipmapsOption::NoMipmap).unwrap(),
+			ambient: src.ambient,
+			specular: src.specular,
+			texture: Texture2d::with_mipmaps(
+					display,
+					src.texture,
+					MipmapsOption::NoMipmap).unwrap(),
 		}
 	}
 }

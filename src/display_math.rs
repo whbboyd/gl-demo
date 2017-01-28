@@ -11,6 +11,7 @@ pub fn view_matrix(position: &[f32; 3], direction: &[f32; 3], up: &[f32; 3]) -> 
 
     let f = {
         let f = direction;
+		// hypot is regrettably 2-argument only.
         let len = f32::sqrt(f[0] * f[0] + f[1] * f[1] + f[2] * f[2]);
         [f[0] / len, f[1] / len, f[2] / len]
     };
@@ -20,8 +21,7 @@ pub fn view_matrix(position: &[f32; 3], direction: &[f32; 3], up: &[f32; 3]) -> 
              up[0] * f[1] - up[1] * f[0]];
 
     let s = {
-        let len = s[0] * s[0] + s[1] * s[1] + s[2] * s[2];
-        let len = len.sqrt();
+        let len = f32::sqrt(s[0] * s[0] + s[1] * s[1] + s[2] * s[2]);
         [s[0] / len, s[1] / len, s[2] / len]
     };
 
@@ -75,7 +75,7 @@ pub fn handle_mouse_move(window: &Window, camera: &mut Camera, x: i32, y: i32) -
 	camera.dir[0] = camera.dir[0] * dh.cos() - camera.dir[2] * dh.sin();
 	camera.dir[2] = camera.dir[0] * dh.sin() + camera.dir[2] * dh.cos();
 	// Accumulated error will lead to movement glitches if we don't renormalize this.
-	let xz_norm = f32::sqrt(camera.dir[0] * camera.dir[0] + camera.dir[2] * camera.dir[2]);
+	let xz_norm = f32::hypot(camera.dir[0], camera.dir[2]);
 	camera.dir[0] /= xz_norm;
 	camera.dir[2] /= xz_norm;
 

@@ -8,6 +8,7 @@ pub fn do_char_movement(character: &mut CharacterState,
 
 	// Acceleration such that we reach max_speed in five frames
 	let accel = character.decel + (character.max_speed / 5.0);
+	let jump_accel = character.gravity + (character.max_jump / 5.0);
 
 	if movement.forward {
 		character.vel[0] += dir[0] * accel;
@@ -28,18 +29,16 @@ pub fn do_char_movement(character: &mut CharacterState,
 	if movement.jumping {
 		if character.loc[1] <= 0.0 {
 			movement.can_jump = 5;
-			character.vel[1] += 0.05;
+			character.vel[1] += jump_accel;
 		} else if movement.can_jump > 0 {
 			movement.can_jump -= 1;
-			character.vel[1] += 0.05;
+			character.vel[1] += jump_accel;
 		}
 	}
 
 	// Apply decelerations
 
-	let char_speed = f32::sqrt(
-		character.vel[0] * character.vel[0] +
-		character.vel[2] * character.vel[2]);
+	let char_speed = f32::hypot(character.vel[0], character.vel[2]);
 	let multiplier = if char_speed - character.decel > character.max_speed {
 		character.max_speed / char_speed } else {
 		f32::max(0.0, (char_speed - character.decel) / char_speed)};
@@ -89,11 +88,4 @@ impl CharacterState {
 	pub fn loc(&self) -> &[f32; 3] {
 		&self.loc
 	}
-
-	pub fn speed(&self) -> f32 {
-		f32::sqrt(self.vel[0] * self.vel[0] +
-			self.vel[1] * self.vel[1] +
-			self.vel[2] * self.vel[2])
-	}
-
 }

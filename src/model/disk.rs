@@ -8,7 +8,7 @@ use wavefront_obj::{ParseError, obj, mtl};
 #[derive(Debug)]
 pub enum LoadModelError {
 	IOError(io::Error),
-	ParseError(ParseError)
+	ParseError(ParseError),
 }
 
 pub fn load_model(read: &mut io::Read) ->
@@ -48,7 +48,7 @@ pub fn load_model(read: &mut io::Read) ->
 			Some(m) => mats.get(&m).unwrap_or_else(|| {
 				error!("Missing material: {:?}", &m);
 				&mat }).clone(),
-			None => mat
+			None => mat,
 		};
 		for shape in geom.shapes {
 			match shape.primitive {
@@ -109,13 +109,20 @@ fn color_conv(color: mtl::Color) -> (f32, f32, f32) {
 
 #[derive(Debug)]
 pub enum LoadTextureError {
-	IOError(io::Error)
+	IOError(io::Error),
+	DecodeError(image::ImageError),
 }
 
 pub fn load_texture<T>(read: &mut T)
 		-> Result<Vec<Vec<(u8, u8, u8, u8)>>, LoadTextureError>
 		where T: io::BufRead + io::Seek {
-	let image = image::load(read, image::PNG).unwrap().to_rgba();
+	let image = try!{
+		image::load(read, image::PNG)
+		.or_else(|e| match e {
+			image::ImageError::IoError(io_err) => Err(LoadTextureError::IOError(io_err)),
+			other_err => Err(LoadTextureError::DecodeError(other_err)),
+		} )
+	}.to_rgba();
 	let (width, height) = image.dimensions();
 	//Derp.
 	let mut y = 0;
