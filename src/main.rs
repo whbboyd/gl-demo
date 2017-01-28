@@ -203,11 +203,6 @@ fn main() {
 					movement.jumping = false;
 					movement.can_jump = 0;
 				}
-				// Enter:
-				Event::KeyboardInput(ElementState::Pressed, 36, _) => (),
-				Event::KeyboardInput(ElementState::Released, 36, _) =>
-					info!("\t{:?}\n\t{:?}\n\t{:?}\n\tSpeed: {}", camera, character, movement,
-						character.speed()),
 				Event::MouseMoved(x, y) =>
 					display_math::handle_mouse_move(
 						&display.get_window().unwrap(), &mut camera, x, y),

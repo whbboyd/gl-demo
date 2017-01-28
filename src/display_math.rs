@@ -74,6 +74,10 @@ pub fn handle_mouse_move(window: &Window, camera: &mut Camera, x: i32, y: i32) -
 	let dh = dx as f32 * 0.005;
 	camera.dir[0] = camera.dir[0] * dh.cos() - camera.dir[2] * dh.sin();
 	camera.dir[2] = camera.dir[0] * dh.sin() + camera.dir[2] * dh.cos();
+	// Accumulated error will lead to movement glitches if we don't renormalize this.
+	let xz_norm = f32::sqrt(camera.dir[0] * camera.dir[0] + camera.dir[2] * camera.dir[2]);
+	camera.dir[0] /= xz_norm;
+	camera.dir[2] /= xz_norm;
 
 	// Turn dy into a rotation on the xy plane
 	// (not really the xy plane; it's the plane determined by x and [0,1,0])
