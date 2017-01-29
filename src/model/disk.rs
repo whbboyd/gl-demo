@@ -1,3 +1,8 @@
+//! Functions to load models from disk.
+//!
+//! This module supports geometry and materials in wavefront `.obj` and `.mtl`
+//! formats, respectively, and textures in `.png`.
+
 use errors::*;
 use image;
 use model::{mem, Vertex};
@@ -6,6 +11,10 @@ use std::fs::File;
 use std::io;
 use wavefront_obj::{obj, mtl};
 
+/// Load a model from a wavefront `.obj` file.
+///
+/// This will follow paths to `.mtl` material libraries and `.png` textures,
+/// returning `Err` if it cannot find them.
 pub fn load_model(read: &mut io::Read) -> Result<(mem::Geometry, mem::Material)> {
 	let mut object_str = String::new();
 	try!{
@@ -81,6 +90,10 @@ pub fn load_model(read: &mut io::Read) -> Result<(mem::Geometry, mem::Material)>
 	Ok( (mem::Geometry { vertices: vertices, indices: indices, }, mat) )
 }
 
+/// Load materials from a wavefront `.mtl` file.
+///
+/// This will follow paths to `.png` textures, returning `Err` if it cannot find
+/// them.
 pub fn load_mats(read: &mut io::Read) -> Result<HashMap<String, mem::Material>> {
 	let mut mat_str = String::new();
 	try!{
@@ -112,10 +125,13 @@ pub fn load_mats(read: &mut io::Read) -> Result<HashMap<String, mem::Material>> 
 	}
 	Ok(mats)
 }
+/// Convert a color from wavefront_obj `Color` to internal RGB tuple
+/// representation.
 fn color_conv(color: mtl::Color) -> (f32, f32, f32) {
 	(color.r as f32, color.g as f32, color.b as f32)
 }
 
+/// Load a texture from a `.png` file.
 pub fn load_texture<T>(read: &mut T) -> Result<Vec<Vec<(u8, u8, u8, u8)>>>
 		where T: io::BufRead + io::Seek {
 	let image = try!{

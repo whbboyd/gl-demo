@@ -1,3 +1,35 @@
+#![warn(missing_docs)]
+
+//! A simple demo OpenGL renderer.
+//!
+//! This uses the Glium and Glutin libraries to render a simple 3D world,
+//! with sketched-out movement and physics.
+//!
+//! The program expects the following files to be available relative to the
+//! working directory:
+//!
+//!  * `data/wt_teapot.obj`
+//!  * `data/floor.obj`
+//!  * `data/materials.mtl`
+//!  * `data/teapot-texture.png`
+//!  * `data/floor-texture.png`
+//!  * `data/vertex_shader.vert`
+//!  * `data/fragment_shader.frag`
+//!
+//! These files are all in these locations relative to the repository root, so
+//! running the program from the repository root (e.g. with `cargo run`)
+//! will find them where it expects.
+//!
+//! Movement controls are as follows:
+//!
+//!  * Mouse: rotate camera
+//!  * `W`: move forwards
+//!  * `A`: move left
+//!  * `S`: move backwards
+//!  * `D`: move right
+//!  * Space: jump
+//!  * `Q`/Esc: exit
+
 #[macro_use]
 extern crate error_chain;
 extern crate env_logger;
@@ -9,9 +41,9 @@ extern crate log;
 extern crate time;
 extern crate wavefront_obj;
 
-mod display_math;
-mod model;
-mod physics;
+pub mod display_math;
+pub mod model;
+pub mod physics;
 
 mod errors { error_chain! { } }
 
@@ -35,6 +67,7 @@ const CHAR_DECEL: f32 = 0.05;
 const CHAR_MAX_JUMP: f32 = 0.2;
 const CHAR_GRAVITY: f32 = 0.02;
 
+/// Main entry point and error handling.
 fn main() {
 	init_log();
 	if let Err(e) = run() {
@@ -49,6 +82,10 @@ fn main() {
 	}
 }
 
+/// Run function.
+///
+/// This loads all neccessary world state, then runs the main event loop,
+/// which reads input, updates world state, and renders to the window.
 fn run() -> Result<()> {
 	info!("Starting demo...");
 
@@ -238,7 +275,7 @@ fn run() -> Result<()> {
 			}
 		}
 
-		physics::do_char_movement(&mut character, &camera.dir, &mut movement);
+		character.do_char_movement(&camera.dir, &mut movement);
 
 		// Update camera
 		camera.loc = character.loc().clone();
@@ -264,16 +301,25 @@ fn run() -> Result<()> {
 	Ok(())
 }
 
+/// Struct to hold character movement state.
 #[derive(Debug)]
 pub struct MovementState {
+	/// True if this character is attempting to move forwards.
 	pub forward: bool,
+	/// True if this character is attempting to move backwards.
 	pub backward: bool,
+	/// True if this character is attempting to strafe left.
 	pub left: bool,
+	/// True if this character is attempting to strafe right.
 	pub right: bool,
+	/// True if this character is attempting to jump.
 	pub jumping: bool,
+	/// Number of frames this character can continue to accelerate while
+	/// jumping.
 	pub can_jump: u8
 }
 
+/// Configure logging.
 fn init_log() {
 	let mut builder = LogBuilder::new();
 	builder.filter(None, LogLevel::Info.to_log_level_filter());

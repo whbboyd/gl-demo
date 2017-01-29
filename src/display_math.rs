@@ -1,12 +1,22 @@
+//! Vector math for display transformations.
+
 use errors::*;
 use glium::glutin::Window;
 
+/// Representation of a camera: location and direction.
 #[derive(Debug)]
 pub struct Camera {
+	/// Location of this camera.
 	pub loc: [f32; 3],
-	pub dir: [f32; 3]
+	/// Direction of this camera.
+	pub dir: [f32; 3],
 }
 
+/// Compute a view transformation matrix based on the given parameters.
+///
+/// This transformation is mostly standard; see [OpenGL
+/// `gluLookAt`](https://www.opengl.org/sdk/docs/man2/xhtml/gluLookAt.xml) for
+/// a detailed description of what it does and how it works.
 pub fn view_matrix(position: &[f32; 3], direction: &[f32; 3], up: &[f32; 3]) -> [[f32; 4]; 4] {
 
     let f = {
@@ -42,6 +52,11 @@ pub fn view_matrix(position: &[f32; 3], direction: &[f32; 3], up: &[f32; 3]) -> 
 
 }
 
+/// Compute a perspective matrix based on the given parameters.
+///
+/// This transformation is mostly standard; see [OpenGL
+/// `gluPerspective`](https://www.opengl.org/sdk/docs/man2/xhtml/gluPerspective.xml)
+/// for a detailed description of what it does and how it works.
 pub fn perspective_matrix(width: u32, height: u32, fov: f32) -> [[f32; 4]; 4] {
 	let aspect_ratio = height as f32 / width as f32;
 
@@ -58,7 +73,17 @@ pub fn perspective_matrix(width: u32, height: u32, fov: f32) -> [[f32; 4]; 4] {
 	]
 }
 
+/// Handle mouse movement.
+///
+/// This translates mouse x/y movement into a change of the direction of the
+/// given `Camera`, and keeps the mouse captured within the window.
+///
+/// Very large mouse movements (typically due to gaining focus with the cursor
+/// in a different location than last seen) will be ignored.
+///
+/// TODO: The mouse capture and focus management should be handled elsewhere.
 pub fn handle_mouse_move(window: &Window, camera: &mut Camera, x: i32, y: i32) -> Result<()> {
+	// Capture the mouse
 	let (uw, uh) = try!{
 		window.get_inner_size().ok_or(Error::from("Could not get window size"))
 	};
@@ -66,6 +91,7 @@ pub fn handle_mouse_move(window: &Window, camera: &mut Camera, x: i32, y: i32) -
 	let h = uh as i32;
 	try!{ window.set_cursor_position(w/2, h/2)
 			.map_err(|_| { Error::from("Could not set cursor position") } ) };
+
 	let dx = w/2 - x;
 	let dy = h/2 - y;
 	if dx.abs() > 200 || dy.abs() > 200 {

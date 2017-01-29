@@ -1,66 +1,16 @@
+//! Module to handle world physics.
+//!
+//! Right now, this is just character movement and gravity.
+
 use MovementState;
 
-pub fn do_char_movement(character: &mut CharacterState,
-		dir: &[f32; 3],
-		movement: &mut MovementState) {
 
-	// Apply accelerations
-
-	// Acceleration such that we reach max_speed in five frames
-	let accel = character.decel + (character.max_speed / 5.0);
-	let jump_accel = character.gravity + (character.max_jump / 5.0);
-
-	if movement.forward {
-		character.vel[0] += dir[0] * accel;
-		character.vel[2] += dir[2] * accel;
-	}
-	if movement.backward {
-		character.vel[0] -= dir[0] * accel;
-		character.vel[2] -= dir[2] * accel;
-	}
-	if movement.left {
-		character.vel[0] -= dir[2] * accel;
-		character.vel[2] += dir[0] * accel;
-	}
-	if movement.right {
-		character.vel[0] += dir[2] * accel;
-		character.vel[2] -= dir[0] * accel;
-	}
-	if movement.jumping {
-		if character.loc[1] <= 0.0 {
-			movement.can_jump = 5;
-			character.vel[1] += jump_accel;
-		} else if movement.can_jump > 0 {
-			movement.can_jump -= 1;
-			character.vel[1] += jump_accel;
-		}
-	}
-
-	// Apply decelerations
-
-	let char_speed = f32::hypot(character.vel[0], character.vel[2]);
-	let multiplier = if char_speed - character.decel > character.max_speed {
-		character.max_speed / char_speed } else {
-		f32::max(0.0, (char_speed - character.decel) / char_speed)};
-	character.vel[0] *= multiplier;
-	character.vel[2] *= multiplier;
-
-	// Gravity:
-	character.vel[1] -= character.gravity;
-
-	// Update locations
-	character.loc[0] += character.vel[0];
-	character.loc[1] += character.vel[1];
-	character.loc[2] += character.vel[2];
-
-	// Collision with ground
-	if character.loc[1] <= 0.0 {
-		character.loc[1] = 0.0;
-		character.vel[1] = 0.0;
-	}
-}
-
-#[derive(Debug)]
+/// A character's physical state.
+///
+/// This includes location and velocity, as well as relevant constants like
+/// maximum XZ movement speed, XZ deceleration due to friction, maximum jump
+/// speed, and acceleration due to gravity.
+#[derive(Clone, Copy, Debug)]
 pub struct CharacterState {
 	loc: [f32; 3],
 	vel: [f32; 3],
@@ -70,6 +20,20 @@ pub struct CharacterState {
 	gravity: f32
 }
 impl CharacterState {
+	/// Create a new CharacterState.
+	///
+	///  * `loc`: The location of this character.
+	///  * `vel`: The velocity of this character, typically
+	///		`[0.0, 0.0, 0.0f32]` initially.
+	///  * `max_speed`: The maximum speed, in units/frame, this character can
+	///		achieve on the XZ plane.
+	///  * `decel`: The rate, in units/frame^2, at which this character
+	///		decelerates due to friction in the absence of movement input.
+	///  * `max_jump`: The maximum speed, in units/frame, this character can
+	///		achieve on the Y axis while jumping.
+	///  * `gravity`: The acceleration, in units/frame^2, this character
+	///		experiences downward on the Y axis due to gravity. Note that this
+	///		value should be positive.
 	pub fn new(loc: [f32; 3],
 			vel: [f32; 3],
 			max_speed: f32,
@@ -85,6 +49,78 @@ impl CharacterState {
 		gravity: gravity}
 	}
 
+	/// Update the character's location and velocity based on inputs, gravity and
+	/// friction.
+	///
+	/// This does all of the following:
+	///
+	///  * Accelerates the character on the XZ plane according to movement inputs.
+	///		Acceleration takes five frames to reach maximum speed.
+	///  * Decelerates the character on the XZ plane according to friction
+	///		(`CharacterState.decel`).
+	///  * Handle jump acceleration and timeout. Jumping takes five frames to
+	///		reach maximum speed.
+	///  * Apply static gravitational acceleration.
+	///  * Clamp Y location above zero for floor clipping.
+	pub fn do_char_movement(&mut self, dir: &[f32; 3], movement: &mut MovementState) {
+
+		// Apply accelerations
+
+		// Acceleration such that we reach max_speed in five frames
+		let accel = self.decel + (self.max_speed / 5.0);
+		let jump_accel = self.gravity + (self.max_jump / 5.0);
+
+		if movement.forward {
+			self.vel[0] += dir[0] * accel;
+			self.vel[2] += dir[2] * accel;
+		}
+		if movement.backward {
+			self.vel[0] -= dir[0] * accel;
+			self.vel[2] -= dir[2] * accel;
+		}
+		if movement.left {
+			self.vel[0] -= dir[2] * accel;
+			self.vel[2] += dir[0] * accel;
+		}
+		if movement.right {
+			self.vel[0] += dir[2] * accel;
+			self.vel[2] -= dir[0] * accel;
+		}
+		if movement.jumping {
+			if self.loc[1] <= 0.0 {
+				movement.can_jump = 5;
+				self.vel[1] += jump_accel;
+			} else if movement.can_jump > 0 {
+				movement.can_jump -= 1;
+				self.vel[1] += jump_accel;
+			}
+		}
+
+		// Apply decelerations
+
+		let char_speed = f32::hypot(self.vel[0], self.vel[2]);
+		let multiplier = if char_speed - self.decel > self.max_speed {
+			self.max_speed / char_speed } else {
+			f32::max(0.0, (char_speed - self.decel) / char_speed)};
+		self.vel[0] *= multiplier;
+		self.vel[2] *= multiplier;
+
+		// Gravity:
+		self.vel[1] -= self.gravity;
+
+		// Update locations
+		self.loc[0] += self.vel[0];
+		self.loc[1] += self.vel[1];
+		self.loc[2] += self.vel[2];
+
+		// Collision with ground
+		if self.loc[1] <= 0.0 {
+			self.loc[1] = 0.0;
+			self.vel[1] = 0.0;
+		}
+	}
+
+	/// Get the location of this character.
 	pub fn loc(&self) -> &[f32; 3] {
 		&self.loc
 	}
