@@ -1,3 +1,4 @@
+use errors::*;
 use model::{disk, Vertex};
 use std::cell::RefCell;
 use std::io::Read;
@@ -49,17 +50,18 @@ impl ModelLibrary {
 		}
 	}
 
-	pub fn load_model(&self, read: &mut Read) -> Rc<Model> {
+	pub fn load_model(&self, read: &mut Read) -> Result<Rc<Model>> {
 		//TODO While probably correct, this is fantastically inelegant.
-		let (geom, mat) = disk::load_model(read).unwrap();
+		let (geom, mat) = try!{ disk::load_model(read) };
 		self.geoms.borrow_mut().push(Rc::new(geom));
 		self.mats.borrow_mut().push(Rc::new(mat));
 		let model = Rc::new(Model {
+			//Because we just pushed these, unwrapping last() is safe.
 			geometry: self.geoms.borrow().last().unwrap().clone(),
 			material: self.mats.borrow().last().unwrap().clone(),
 		});
 		self.models.borrow_mut().push(model.clone());
-		model
+		Ok(model)
 	}
 }
 

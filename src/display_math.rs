@@ -1,4 +1,4 @@
-extern crate glium;
+use errors::*;
 use glium::glutin::Window;
 
 #[derive(Debug)]
@@ -58,16 +58,19 @@ pub fn perspective_matrix(width: u32, height: u32, fov: f32) -> [[f32; 4]; 4] {
 	]
 }
 
-pub fn handle_mouse_move(window: &Window, camera: &mut Camera, x: i32, y: i32) -> () {
-	let (uw, uh) = window.get_inner_size().unwrap();
+pub fn handle_mouse_move(window: &Window, camera: &mut Camera, x: i32, y: i32) -> Result<()> {
+	let (uw, uh) = try!{
+		window.get_inner_size().ok_or(Error::from("Could not get window size"))
+	};
 	let w = uw as i32;
 	let h = uh as i32;
-	window.set_cursor_position(w/2, h/2).unwrap();
+	try!{ window.set_cursor_position(w/2, h/2)
+			.map_err(|_| { Error::from("Could not set cursor position") } ) };
 	let dx = w/2 - x;
 	let dy = h/2 - y;
 	if dx.abs() > 200 || dy.abs() > 200 {
 		info!("Skipping camera move due to large delta: {}, {}", dx, dy);
-		return;
+		return Ok(());
 	}
 
 	// Turn dx into a rotation on the xz plane
@@ -85,5 +88,7 @@ pub fn handle_mouse_move(window: &Window, camera: &mut Camera, x: i32, y: i32) -
 	// (otherwise the camera will flip if you cross zenith or nadir, which is super confusing)
 	//FIXME: This more-or-less works, but is probably^Wdefinitely wrong.
 	camera.dir[1] += dy as f32 * 0.005;
+
+	Ok(())
 }
 

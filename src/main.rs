@@ -1,9 +1,11 @@
 #[macro_use]
+extern crate error_chain;
+extern crate env_logger;
+#[macro_use]
 extern crate glium;
 extern crate image;
 #[macro_use]
 extern crate log;
-extern crate env_logger;
 extern crate time;
 extern crate wavefront_obj;
 
@@ -11,7 +13,10 @@ mod display_math;
 mod model;
 mod physics;
 
+mod errors { error_chain! { } }
+
 use env_logger::LogBuilder;
+use errors::*;
 use glium::{Depth, DisplayBuild, DrawParameters, Program, Surface};
 use glium::draw_parameters::{BackfaceCullingMode, DepthTest};
 use glium::glutin::{Api, ElementState, Event, GlRequest, WindowBuilder};
@@ -32,35 +37,55 @@ const CHAR_GRAVITY: f32 = 0.02;
 
 fn main() {
 	init_log();
+	if let Err(e) = run() {
+		error!("Fatal error: {}", e);
+		for e in e.iter().skip(1) {
+			error!("\tCaused by: {}", e);
+		}
+		if let Some(backtrace) = e.backtrace() {
+			error!("Backtrace: {:?}", backtrace);
+		}
+		::std::process::exit(1);
+	}
+}
+
+fn run() -> Result<()> {
 	info!("Starting demo...");
 
 	info!("Loading models and textures...");
 	let library = model::mem::ModelLibrary::new();
-	let mut file = File::open(TEAPOT_PATH).unwrap();
-	let teapot = library.load_model(&mut file);
-	let mut file = File::open(FLOOR_PATH).unwrap();
-	let floor = library.load_model(&mut file);
+	let mut file = try!{ File::open(TEAPOT_PATH).chain_err(|| "Could not load teapot model") };
+	let teapot = try!{ library.load_model(&mut file) };
+	let mut file = try!{ File::open(FLOOR_PATH).chain_err(|| "Could not load floor model") };
+	let floor = try!{ library.load_model(&mut file) };
 
 	info!("Initializing display...");
-	let display = WindowBuilder::new()
-		.with_depth_buffer(24)
-		.with_vsync()
-		//TODO What's the minimum version we can get away with?
-		//FIXME This isn't behaving as expected.
-		.with_gl(GlRequest::Specific(Api::OpenGl, (2, 1)))
-		.build_glium().unwrap();
+	let display = try!{ WindowBuilder::new()
+			.with_depth_buffer(24)
+			.with_vsync()
+			//TODO What's the minimum version we can get away with?
+			//FIXME This isn't behaving as expected.
+			.with_gl(GlRequest::Specific(Api::OpenGl, (2, 1)))
+			.build_glium()
+			.map_err(|e| { Error::from(format!("{:?}", e)) } ) };
 
 	info!("Loading shaders...");
-	let mut file = File::open(VERTEX_SHADER_PATH).unwrap();
 	let mut vertex_shader = String::new();
-	file.read_to_string(&mut vertex_shader).unwrap();
-	let mut file = File::open(FRAGMENT_SHADER_PATH).unwrap();
+	let mut file = try!{ File::open(VERTEX_SHADER_PATH)
+			.chain_err(|| "Could not load vertex shader") };
+	try!{ file.read_to_string(&mut vertex_shader)
+			.chain_err(|| "Could not load vertex shader") };
 	let mut fragment_shader = String::new();
-	file.read_to_string(&mut fragment_shader).unwrap();
+	let mut file = try!{ File::open(FRAGMENT_SHADER_PATH)
+			.chain_err(|| "Could not load fragment shader") };
+	try!{ file.read_to_string(&mut fragment_shader)
+			.chain_err(|| "Could not load fragment shader") };
 
 	info!("Compiling shaders...");
-	let program = Program::from_source(
-		&display, &vertex_shader, &fragment_shader, None).unwrap();
+	let program = try!{
+		Program::from_source(&display, &vertex_shader, &fragment_shader, None)
+			.chain_err(|| "Error compiling shaders")
+	};
 
 	info!("Preparing environment...");
 	let params = DrawParameters {
@@ -74,8 +99,8 @@ fn main() {
 	};
 
 	info!("Building world...");
-	let gpu_teapot = model::gpu::Model::from_mem(&display, &teapot);
-	let gpu_floor = model::gpu::Model::from_mem(&display, &floor);
+	let gpu_teapot = try!{ model::gpu::Model::from_mem(&display, &teapot) };
+	let gpu_floor = try!{ model::gpu::Model::from_mem(&display, &floor) };
 	let mut objects = Vec::new();
 	for x in 0u8..3 { for y in 0u8..3 { for z in 0u8..3 {
 		let obx = x as f32 * 1.5;
@@ -204,8 +229,9 @@ fn main() {
 					movement.can_jump = 0;
 				}
 				Event::MouseMoved(x, y) =>
-					display_math::handle_mouse_move(
-						&display.get_window().unwrap(), &mut camera, x, y),
+					try!{ display_math::handle_mouse_move(
+							&display.get_window().unwrap(), &mut camera, x, y)
+					},
 				Event::Resized(w, h) =>
 					perspective = display_math::perspective_matrix(w, h, fov),
 				_ => ()
@@ -234,6 +260,8 @@ fn main() {
 	}
 
 	info!("Program loop ended, exiting...");
+
+	Ok(())
 }
 
 #[derive(Debug)]

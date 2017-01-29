@@ -1,3 +1,4 @@
+use errors::*;
 use glium::backend::Facade;
 use glium::{IndexBuffer, VertexBuffer};
 use glium::index::PrimitiveType::TrianglesList;
@@ -10,11 +11,13 @@ pub struct Geometry {
 	pub indices: IndexBuffer<u16>,
 }
 impl Geometry {
-	pub fn from_mem(display: &Facade, geometry: &mem::Geometry) -> Geometry {
-		Geometry {
-			vertices: VertexBuffer::new(display, geometry.vertices.as_ref()).unwrap(),
-			indices: IndexBuffer::new(display, TrianglesList, geometry.indices.as_ref()).unwrap(),
-		}
+	pub fn from_mem(display: &Facade, geometry: &mem::Geometry) -> Result<Geometry> {
+		Ok( Geometry {
+			vertices: try!{ VertexBuffer::new(display, geometry.vertices.as_ref())
+					.chain_err(|| "Could not upload vertices to GPU") },
+			indices: try!{ IndexBuffer::new(display, TrianglesList, geometry.indices.as_ref())
+					.chain_err(|| "Could not upload indices to GPU") },
+		} )
 	}
 }
 
@@ -25,16 +28,15 @@ pub struct Material {
 	pub texture: Texture2d,
 }
 impl Material {
-	pub fn from_mem(display: &Facade, material: &mem::Material) -> Material {
+	pub fn from_mem(display: &Facade, material: &mem::Material) -> Result<Material> {
 		let src = material.clone();
-		Material {
+		Ok( Material {
 			ambient: src.ambient,
 			specular: src.specular,
-			texture: Texture2d::with_mipmaps(
-					display,
-					src.texture,
-					MipmapsOption::NoMipmap).unwrap(),
-		}
+			texture: try!{
+				Texture2d::with_mipmaps(display, src.texture, MipmapsOption::NoMipmap)
+					.chain_err(|| "Could not upload texture to GPU") },
+		} )
 	}
 }
 
@@ -44,11 +46,11 @@ pub struct Model {
 	pub material: Material,
 }
 impl Model {
-	pub fn from_mem(display: &Facade, model: &mem::Model) -> Model {
-		Model {
-			geometry: Geometry::from_mem(display, model.geometry.as_ref()),
-			material: Material::from_mem(display, model.material.as_ref()),
-		}
+	pub fn from_mem(display: &Facade, model: &mem::Model) -> Result<Model> {
+		Ok ( Model {
+			geometry: try!{ Geometry::from_mem(display, model.geometry.as_ref()) },
+			material: try!{ Material::from_mem(display, model.material.as_ref()) },
+		} )
 	}
 }
 
