@@ -1,10 +1,6 @@
 Unless noted otherwise, all files in this project are copyright (c) Will Boyd
 and licensed under the GNU GPLv3, the text of which follows.
 
-The file '/src/teapot.rs' is copied from the glium project and is
-licensed by them under the Apache license version 2, which can be downloaded
-from http://www.apache.org/licenses/.
-
                     GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
 
