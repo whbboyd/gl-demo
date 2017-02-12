@@ -93,5 +93,19 @@ impl ModelLibrary {
 		self.models.borrow_mut().push(model.clone());
 		Ok(model)
 	}
+
+	/// Add an existing (already loaded or hardcoded) model into this library,
+	/// and return an `Rc` to the loaded model.
+	pub fn add_model(&self, geom: Geometry, mat: Material) -> Result<Rc<Model>> {
+		self.geoms.borrow_mut().push(Rc::new(geom));
+		self.mats.borrow_mut().push(Rc::new(mat));
+		let model = Rc::new(Model {
+			//Because we just pushed these, unwrapping last() is safe.
+			geometry: self.geoms.borrow().last().unwrap().clone(),
+			material: self.mats.borrow().last().unwrap().clone(),
+		});
+		self.models.borrow_mut().push(model.clone());
+		Ok(model)
+	}
 }
 

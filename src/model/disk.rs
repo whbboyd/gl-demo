@@ -45,16 +45,16 @@ pub fn load_model(read: &mut io::Read) -> Result<(mem::Geometry, mem::Material)>
 	};
 
 	let mut vertices = object.vertices.iter()
-		.map(|v| Vertex{position: (v.x as f32, v.y as f32, v.z as f32),
-			normal: (0.0, 1.0, 0.0),
-			tex_uv: (0.0, 0.0)})
+		.map(|v| Vertex{position: [v.x as f32, v.y as f32, v.z as f32],
+			normal: [0.0, 1.0, 0.0],
+			tex_uv: [0.0, 0.0] })
 		.collect::<Vec<Vertex>>();
 	let normals = object.normals.iter()
-		.map(|n| (n.x as f32, n.y as f32, n.z as f32))
+		.map(|n| [n.x as f32, n.y as f32, n.z as f32])
 		.collect::<Vec<_>>();
 	let tex_uv = object.tex_vertices.iter()
 		//TODO: Is a texture w a common or useful thing?
-		.map(|t| (t.u as f32, t.v as f32))
+		.map(|t| [t.u as f32, t.v as f32])
 		.collect::<Vec<_>>();
 	let mut indices: Vec<u16> = Vec::new();
 	let mut mat: mem::Material = mem::default_mat();

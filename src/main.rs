@@ -93,8 +93,11 @@ fn run() -> Result<()> {
 	let library = model::mem::ModelLibrary::new();
 	let mut file = try!{ File::open(TEAPOT_PATH).chain_err(|| "Could not load teapot model") };
 	let teapot = try!{ library.load_model(&mut file) };
-	let mut file = try!{ File::open(FLOOR_PATH).chain_err(|| "Could not load floor model") };
-	let floor = try!{ library.load_model(&mut file) };
+//	let mut file = try!{ File::open(FLOOR_PATH).chain_err(|| "Could not load floor model") };
+//	let floor = try!{ library.load_model(&mut file) };
+	let floor = try!{ library.add_model(
+			model::heightmap::Heightmap::with_size(10, 10, 1.0).as_geometry(),
+			model::mem::default_mat()) };
 
 	info!("Initializing display...");
 	let display = try!{ WindowBuilder::new()
@@ -155,9 +158,9 @@ fn run() -> Result<()> {
 	objects.push(model::gpu::ModelInstance {
 		model: &gpu_floor,
 		model_matrix: [
-			[999.0,	0.0,	0.0,	0.0],
-			[0.0,	999.0,	0.0,	0.0],
-			[0.0,	0.0,	999.0,	0.0],
+			[1.0,	0.0,	0.0,	0.0],
+			[0.0,	1.0,	0.0,	0.0],
+			[0.0,	0.0,	1.0,	0.0],
 			[0.0,	-0.5,	0.0,	1.0] ], } );
 
 	let light_pos = [-1.0, 0.4, 0.9f32];
