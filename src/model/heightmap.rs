@@ -1,6 +1,5 @@
 //! Generate heightmap meshes.
 
-use errors::*;
 use model::{mem, Vertex};
 use std::f32;
 
@@ -34,6 +33,35 @@ impl Heightmap {
 		heightmap
 	}
 
+	/// Create a heightmap object from a texture
+	pub fn from_map(map: &Vec<Vec<(u8, u8, u8, u8)>>,
+			lowest: f32,
+			highest: f32,
+			scale: f32) -> Heightmap {
+		let width = map.len();
+		let height = map[0].len();
+		let mut heightmap = Heightmap {
+			width: width,
+			heights: Vec::with_capacity(width * height),
+			scale: scale,
+		};
+		heightmap.heights.resize(width * height, HeightmapVertex { height: 0.0, metadata: () });
+		for (x, row) in map.iter().enumerate() {
+			for (z, cell) in row.iter().enumerate() {
+				let mut height = (cell.0 as f32 + cell.1 as f32 + cell.2 as f32) / 768.0;
+				height = height * (highest - lowest) + lowest;
+				heightmap.set_height(x, z, height);
+			}
+		}
+		heightmap
+	}
+
+	/// Set the height (pre-scale) at a particular x/z coordinate.
+	pub fn set_height(&mut self, x: usize, y: usize, height: f32) {
+		let index = self.get_index(x, y);
+		self.heights[index].height = height;
+	}
+
 	/// Get the vertex at a particular x/z coordinate.
 	pub fn get_vertex(&self, x: usize, z: usize) -> Vertex {
 		let index = self.get_index(x, z);
@@ -49,6 +77,7 @@ impl Heightmap {
 
 		// Compute the normal.
 		// TODO: make this more better
+		// TODO: I think this is wrong, possibly not accounting correctly for scale?
 		// For all adjacent vertices:
 		let adjacents = self.get_adjacent_vertices(x, z);
 		let norm = adjacents.len() as f32;
@@ -78,11 +107,14 @@ impl Heightmap {
 			normal[2] += adj_normal[2] / adj_normal_len;
 		}
 		normal = [normal[0] / norm, normal[1] / norm, normal[2] / norm];
+
+		// Texture mapping
+		let tex_uv = [position[0], position[2]];
+
 		Vertex {
 			position: position,
 			normal: normal,
-			// TODO: generate texture mapping
-			tex_uv: [0.0, 0.0],
+			tex_uv: tex_uv,
 		}
 	}
 

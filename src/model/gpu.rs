@@ -4,7 +4,7 @@ use errors::*;
 use glium::backend::Facade;
 use glium::{IndexBuffer, VertexBuffer};
 use glium::index::PrimitiveType::TrianglesList;
-use glium::texture::{MipmapsOption, Texture2d};
+use glium::texture::Texture2d;
 use model::{mem, Vertex};
 
 /// GPU geometry, that is `Vertex`s.
@@ -46,7 +46,7 @@ impl Material {
 			ambient: src.ambient,
 			specular: src.specular,
 			texture: try!{
-				Texture2d::with_mipmaps(display, src.texture, MipmapsOption::NoMipmap)
+				Texture2d::new(display, src.texture)
 					.chain_err(|| "Could not upload texture to GPU") },
 		} )
 	}

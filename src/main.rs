@@ -8,13 +8,13 @@
 //! The program expects the following files to be available relative to the
 //! working directory:
 //!
-//!  * `data/wt_teapot.obj`
-//!  * `data/floor.obj`
-//!  * `data/materials.mtl`
-//!  * `data/teapot-texture.png`
-//!  * `data/floor-texture.png`
-//!  * `data/vertex_shader.vert`
 //!  * `data/fragment_shader.frag`
+//!  * `data/materials.mtl`
+//!  * `data/wt_teapot.obj`
+//!  * `data/floor-texture.png`
+//!  * `data/heightmap.png`
+//!  * `data/teapot-texture.png`
+//!  * `data/vertex_shader.vert`
 //!
 //! These files are all in these locations relative to the repository root, so
 //! running the program from the repository root (e.g. with `cargo run`)
@@ -52,13 +52,15 @@ use errors::*;
 use glium::{Depth, DisplayBuild, DrawParameters, Program, Surface};
 use glium::draw_parameters::{BackfaceCullingMode, DepthTest};
 use glium::glutin::{Api, ElementState, Event, GlRequest, WindowBuilder};
+use glium::uniforms::SamplerWrapFunction;
 use log::{LogLevel, LogRecord};
 use std::fs::File;
-use std::io::Read;
+use std::io::{BufReader, Read};
 use time::{now, PreciseTime};
 
 const TEAPOT_PATH: &'static str = "data/wt_teapot.obj";
-const FLOOR_PATH: &'static str = "data/floor.obj";
+const FLOOR_HEIGHTMAP: &'static str = "data/heightmap.png";
+const FLOOR_MATERIALS: &'static str = "data/materials.mtl";
 const VERTEX_SHADER_PATH: &'static str = "data/vertex_shader.vert";
 const FRAGMENT_SHADER_PATH: &'static str = "data/fragment_shader.frag";
 
@@ -93,11 +95,15 @@ fn run() -> Result<()> {
 	let library = model::mem::ModelLibrary::new();
 	let mut file = try!{ File::open(TEAPOT_PATH).chain_err(|| "Could not load teapot model") };
 	let teapot = try!{ library.load_model(&mut file) };
-//	let mut file = try!{ File::open(FLOOR_PATH).chain_err(|| "Could not load floor model") };
-//	let floor = try!{ library.load_model(&mut file) };
-	let floor = try!{ library.add_model(
-			model::heightmap::Heightmap::with_size(10, 10, 1.0).as_geometry(),
-			model::mem::default_mat()) };
+	let file = try!{ File::open(FLOOR_HEIGHTMAP).chain_err(|| "Could not load heightmap") };
+	let heightmap = try!{ model::disk::load_texture(&mut BufReader::new(file))
+			.chain_err(|| "Could not load heightmap") };
+	let floor_geom = model::heightmap::Heightmap::from_map(&heightmap, 0.0, 10.0, 10.0);
+	let mut file = try!{ File::open(FLOOR_MATERIALS)
+			.chain_err(|| "Could not load floor materials") };
+	let floor_mat = try!{ try!{ model::disk::load_mats(&mut file) }.remove("Floor")
+			.ok_or(Error::from("Floor material library missing floor material (\"Floor\")")) };
+	let floor = try!{ library.add_model(floor_geom.as_geometry(), floor_mat) };
 
 	info!("Initializing display...");
 	let display = try!{ WindowBuilder::new()
@@ -158,10 +164,10 @@ fn run() -> Result<()> {
 	objects.push(model::gpu::ModelInstance {
 		model: &gpu_floor,
 		model_matrix: [
-			[1.0,	0.0,	0.0,	0.0],
-			[0.0,	1.0,	0.0,	0.0],
-			[0.0,	0.0,	1.0,	0.0],
-			[0.0,	-0.5,	0.0,	1.0] ], } );
+			[1.0,		0.0,	0.0,	0.0],
+			[0.0,		1.0,	0.0,	0.0],
+			[0.0,		0.0,	1.0,	0.0],
+			[-500.0,	-0.5,	-500.0,	1.0] ], } );
 
 	let light_pos = [-1.0, 0.4, 0.9f32];
 	let light_color = [1.0, 1.0, 1.0f32];
@@ -224,9 +230,7 @@ fn run() -> Result<()> {
 					u_mat_ambient: object.model.material.ambient,
 					u_mat_specular: object.model.material.specular,
 					u_mat_texture: object.model.material.texture
-							.sampled()
-							.magnify_filter(
-									::glium::uniforms::MagnifySamplerFilter::Nearest),
+						.sampled().wrap_function(SamplerWrapFunction::Repeat),
 					},
 				&params).unwrap();
 		}

@@ -98,3 +98,11 @@ A few useful values:
 	* if y is positive, it's [-x, 1/y, -z]
 	* if y is negative, it's [x, 1/y, z]
 
+## Texturing
+
+It's mostly possible for us to tile a rectangular texture over our triangle grid. Advantage of this is no wasted texture data and it's reasonably possible to tile square textures over our heightmap. Disadvantage is that texture mapping is slightly harder and not all tris have the same texture map.
+
+Another consideration worth considering: depending on slope, not every heightmap tri has the same surface area (to say nothing of shape). Trying to automate this and maintain tiling is hopeless, though.
+
+Far and away the easiest option is to map texture u,v to vertex x,z with appropriate wrapping. The major downside here is that no two tris have the same texture mapped to them. Do we care? (Signs point to no.)
+
