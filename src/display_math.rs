@@ -2,14 +2,15 @@
 
 use errors::*;
 use glium::glutin::Window;
+use linear_algebra::{Mat4, Vec3};
 
 /// Representation of a camera: location and direction.
 #[derive(Debug)]
 pub struct Camera {
 	/// Location of this camera.
-	pub loc: [f32; 3],
+	pub loc: Vec3<f32>,
 	/// Direction of this camera.
-	pub dir: [f32; 3],
+	pub dir: Vec3<f32>,
 }
 
 /// Compute a view transformation matrix based on the given parameters.
@@ -17,38 +18,34 @@ pub struct Camera {
 /// This transformation is mostly standard; see [OpenGL
 /// `gluLookAt`](https://www.opengl.org/sdk/docs/man2/xhtml/gluLookAt.xml) for
 /// a detailed description of what it does and how it works.
-pub fn view_matrix(position: &[f32; 3], direction: &[f32; 3], up: &[f32; 3]) -> [[f32; 4]; 4] {
+pub fn view_matrix(position: Vec3<f32>, direction: Vec3<f32>, up: Vec3<f32>) -> Mat4<f32> {
 
     let f = {
         let f = direction;
 		// hypot is regrettably 2-argument only.
         let len = f32::sqrt(f[0] * f[0] + f[1] * f[1] + f[2] * f[2]);
-        [f[0] / len, f[1] / len, f[2] / len]
+        Vec3::from([f[0] / len, f[1] / len, f[2] / len])
     };
 
-    let s = [up[1] * f[2] - up[2] * f[1],
-             up[2] * f[0] - up[0] * f[2],
-             up[0] * f[1] - up[1] * f[0]];
+	let s = up.cross(f);
 
     let s = {
         let len = f32::sqrt(s[0] * s[0] + s[1] * s[1] + s[2] * s[2]);
-        [s[0] / len, s[1] / len, s[2] / len]
+        Vec3::from([s[0] / len, s[1] / len, s[2] / len])
     };
 
-    let u = [f[1] * s[2] - f[2] * s[1],
-             f[2] * s[0] - f[0] * s[2],
-             f[0] * s[1] - f[1] * s[0]];
+	let u = f.cross(s);
 
     let p = [-position[0] * s[0] - position[1] * s[1] - position[2] * s[2],
              -position[0] * u[0] - position[1] * u[1] - position[2] * u[2],
              -position[0] * f[0] - position[1] * f[1] - position[2] * f[2]];
 
-    [
+    Mat4::from([
         [s[0], u[0], f[0], 0.0],
         [s[1], u[1], f[1], 0.0],
         [s[2], u[2], f[2], 0.0],
         [p[0], p[1], p[2], 1.0],
-    ]
+    ])
 
 }
 
@@ -57,7 +54,7 @@ pub fn view_matrix(position: &[f32; 3], direction: &[f32; 3], up: &[f32; 3]) -> 
 /// This transformation is mostly standard; see [OpenGL
 /// `gluPerspective`](https://www.opengl.org/sdk/docs/man2/xhtml/gluPerspective.xml)
 /// for a detailed description of what it does and how it works.
-pub fn perspective_matrix(width: u32, height: u32, fov: f32) -> [[f32; 4]; 4] {
+pub fn perspective_matrix(width: u32, height: u32, fov: f32) -> Mat4<f32> {
 	let aspect_ratio = height as f32 / width as f32;
 
 	let zfar = 1024.0;
@@ -65,12 +62,12 @@ pub fn perspective_matrix(width: u32, height: u32, fov: f32) -> [[f32; 4]; 4] {
 
 	let f = 1.0 / (fov / 2.0).tan();
 
-	[
+	Mat4::from([
 		[f * aspect_ratio, 0.0, 0.0,                            0.0],
 		[0.0             , f,   0.0,                            0.0],
 		[0.0             , 0.0, (zfar+znear)/(zfar-znear),      1.0],
 		[0.0             , 0.0, -(2.0*zfar*znear)/(zfar-znear), 0.0],
-	]
+	])
 }
 
 /// Handle mouse movement.

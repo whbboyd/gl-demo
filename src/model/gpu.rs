@@ -5,6 +5,7 @@ use glium::backend::Facade;
 use glium::{IndexBuffer, VertexBuffer};
 use glium::index::PrimitiveType::TrianglesList;
 use glium::texture::{MipmapsOption, Texture2d};
+use linear_algebra::Mat4;
 use model::{mem, Vertex};
 
 /// GPU geometry, that is `Vertex`s.
@@ -77,6 +78,6 @@ pub struct ModelInstance<'a> {
 	/// The model in question.
 	pub model: &'a Model,
 	/// The transformation matrix to place the model in the world.
-	pub model_matrix: [[f32; 4]; 4],
+	pub model_matrix: Mat4<f32>,
 }
 

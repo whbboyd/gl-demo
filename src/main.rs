@@ -42,6 +42,7 @@ extern crate time;
 extern crate wavefront_obj;
 
 pub mod display_math;
+pub mod linear_algebra;
 pub mod model;
 pub mod physics;
 
@@ -52,6 +53,7 @@ use errors::*;
 use glium::{Depth, DisplayBuild, DrawParameters, Program, Surface};
 use glium::draw_parameters::{BackfaceCullingMode, DepthTest};
 use glium::glutin::{Api, ElementState, Event, GlRequest, WindowBuilder};
+use linear_algebra::{Mat4, Vec3};
 use log::{LogLevel, LogRecord};
 use std::fs::File;
 use std::io::Read;
@@ -146,22 +148,22 @@ fn run() -> Result<()> {
 		let scale = 0.5 + (obx + oby + obz) / 30.0;
 		objects.push(model::gpu::ModelInstance {
 				model: &gpu_teapot,
-				model_matrix: [
+				model_matrix: Mat4::from( [
 					[scale,	0.0,	0.0,	0.0],
 					[0.0,	scale,	0.0,	0.0],
 					[0.0,	0.0,	scale,	0.0],
-					[obx,	oby,	obz,	1.0] ], } );
+					[obx,	oby,	obz,	1.0] ] ), } );
 	} } };
 	objects.push(model::gpu::ModelInstance {
 		model: &gpu_floor,
-		model_matrix: [
+		model_matrix: Mat4::from( [
 			[999.0,	0.0,	0.0,	0.0],
 			[0.0,	999.0,	0.0,	0.0],
 			[0.0,	0.0,	999.0,	0.0],
-			[0.0,	-0.5,	0.0,	1.0] ], } );
+			[0.0,	-0.5,	0.0,	1.0] ], ) } );
 
-	let light_pos = [-1.0, 0.4, 0.9f32];
-	let light_color = [1.0, 1.0, 1.0f32];
+	let light_pos = Vec3::from([-1.0, 0.4, 0.9f32]);
+	let light_color = (1.0, 1.0, 1.0f32);
 
 	let mut frame: u64 = 0;
 	let mut last_time = PreciseTime::now();
@@ -181,16 +183,16 @@ fn run() -> Result<()> {
 	};
 
 	let mut character = physics::CharacterState::new(
-		[-5.0, 0.0, 0.0],
-		[0.0, 0.0, 0.0],
+		Vec3::from([-5.0, 0.0, 0.0]),
+		Vec3::from([0.0, 0.0, 0.0]),
 		CHAR_MAX_SPEED,
 		CHAR_DECEL,
 		CHAR_MAX_JUMP,
-		CHAR_GRAVITY);
+		CHAR_GRAVITY,);
 
 	let mut camera = display_math::Camera {
 		loc: character.loc().clone(),
-		dir: [1.0, 0.0, 0.0]
+		dir: Vec3::from([1.0, 0.0, 0.0]),
 	};
 	camera.loc[1] += 0.5;
 
@@ -203,20 +205,24 @@ fn run() -> Result<()> {
 		target.clear_color_and_depth((0.5, 0.5, 1.0, 1.0), 1.0);
 
 		let view = display_math::view_matrix(
-			&camera.loc,
-			&camera.dir,
-			&[0.0, 1.0, 0.0]);
+			camera.loc,
+			camera.dir,
+			Vec3::from([0.0, 1.0, 0.0]),);
 
+		let view_matrix: [[f32; 4]; 4] = view.clone().into();
+		let perspective_matrix: [[f32; 4]; 4] = perspective.clone().into();
+		let light_vector: [f32; 3] = light_pos.clone().into();
 		for object in objects.iter() {
+			let model_matrix: [[f32; 4]; 4] = object.model_matrix.clone().into();
 			target.draw(
 				&object.model.geometry.vertices,
 				&object.model.geometry.indices,
 				&program,
 				&uniform! {
-					model_matrix: object.model_matrix,
-					view_matrix: view,
-					perspective_matrix: perspective,
-					u_light_pos: light_pos,
+					model_matrix: model_matrix,
+					view_matrix: view_matrix,
+					perspective_matrix: perspective_matrix,
+					u_light_pos: light_vector,
 					u_light_color: light_color,
 					u_mat_ambient: object.model.material.ambient,
 					u_mat_specular: object.model.material.specular,
