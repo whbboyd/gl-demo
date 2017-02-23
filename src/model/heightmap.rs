@@ -1,5 +1,6 @@
 //! Generate heightmap meshes.
 
+use linear_algebra::Vec3;
 use model::{mem, Vertex};
 use std::f32;
 
@@ -67,53 +68,37 @@ impl Heightmap {
 		let index = self.get_index(x, z);
 
 		// Compute the position.
-		let position = [
-			((index % self.width) as f32 +
-				(if (index / self.width) % 2 == 0 { 0.0 } else { 0.5 }))
-				* self.scale,
-			self.heights[index].height * self.scale,
-			(index / self.width) as f32 * ROW_SPACING * self.scale,
-		];
+		let position = self.get_position(index);
 
 		// Compute the normal.
-		// TODO: make this more better
-		// TODO: I think this is wrong, possibly not accounting correctly for scale?
 		// For all adjacent vertices:
 		let adjacents = self.get_adjacent_vertices(x, z);
 		let norm = adjacents.len() as f32;
-		let mut normal = [0f32, 0f32, 0f32];
-		for index in adjacents {
-			let adj_pos = [
-				((index % self.width) as f32 +
-					(if (index / self.width) % 2 == 0 { 0.0 } else { 0.5 }))
-					* self.scale,
-				self.heights[index].height * self.scale,
-				(index / self.width) as f32 * ROW_SPACING * self.scale,
-			];
-			let parallel = [position[0] - adj_pos[0],
-				position[1] - adj_pos[1],
-				position[2] - adj_pos[2]];
-			let adj_normal = if parallel[1] > 0.0 {
-				[-parallel[0], 1.0 / parallel[1], -parallel[2]]
-			} else if parallel[1] < 0.0 {
-				[parallel[0], -1.0 / parallel[1], parallel[2]]
-			} else {
-				[0.0, 1.0, 0.0]
+		let mut normal = Vec3::from([0f32; 3]);
+		for adj_index in adjacents {
+			// Compute the normal to the surface between this vertex and the adjacent
+			let adj_pos = self.get_position(adj_index);
+			let parallel = position - adj_pos;
+			let axis = {
+				let xz_norm = f32::sqrt(parallel[0] * parallel[0] + parallel[2] * parallel[2]);
+				Vec3::from([parallel[1] / xz_norm, 0.0, parallel[0] / xz_norm])
 			};
-			let adj_normal_len = f32::sqrt(adj_normal[0] * adj_normal[0] +
-				adj_normal[1] * adj_normal[1] + adj_normal[2] * adj_normal[2]);
-			normal[0] += adj_normal[0] / adj_normal_len;
-			normal[1] += adj_normal[1] / adj_normal_len;
-			normal[2] += adj_normal[2] / adj_normal_len;
+			let cross = axis.cross(parallel);
+			let dot = axis.dot(parallel);
+			let adj_normal = cross + (axis * dot);
+			adj_normal.normalize();
+			// Add them all up
+			normal = normal + adj_normal;
 		}
-		normal = [normal[0] / norm, normal[1] / norm, normal[2] / norm];
+		// Normalize
+		normal = normal / norm;
 
 		// Texture mapping
 		let tex_uv = [position[0], position[2]];
 
 		Vertex {
-			position: position,
-			normal: normal,
+			position: position.into(),
+			normal: normal.into(),
 			tex_uv: tex_uv,
 		}
 	}
@@ -166,51 +151,62 @@ impl Heightmap {
 		x + z * self.width
 	}
 
+	/// Get the position in 3D space of a vertex by index.
+	fn get_position(&self, index: usize) -> Vec3<f32> {
+		Vec3::from([
+			((index % self.width) as f32 +
+				(if (index / self.width) % 2 == 0 { 0.0 } else { 0.5 }))
+				* self.scale,
+			self.heights[index].height * self.scale,
+			(index / self.width) as f32 * ROW_SPACING * self.scale,
+		])
+	}
+
 	/// Get the list of vertices (by index) adjacent to the given vertex.
 	fn get_adjacent_vertices(&self, x: usize, z: usize) -> Vec<usize> {
 		let mut adjacents = Vec::with_capacity(6);
 
 		// Rows above and below (adjacents 0, 1, 4, 5) depend on row parity.
-		if x % 2 == 0 {
-			let row_above = x as isize - 1;
-			let row_below = x + 1;
-			let z_left = z as isize - 1;
+		if z % 2 == 0 {
+			let row_above = z as isize - 1;
+			let row_below = z + 1;
+			let x_left = x as isize - 1;
 			if row_above >= 0 {
-				if z_left >= 0 {
-					adjacents.push(self.get_index(row_above as usize, z_left as usize));
+				if x_left >= 0 {
+					adjacents.push(self.get_index(x_left as usize, row_above as usize));
 				}
-				adjacents.push(self.get_index(row_above as usize, z));
+				adjacents.push(self.get_index(x, row_above as usize));
 			}
 			if row_below < self.height() {
-				if z_left >= 0 {
-					adjacents.push(self.get_index(row_below as usize, z_left as usize));
+				if x_left >= 0 {
+					adjacents.push(self.get_index(x_left as usize, row_below as usize));
 				}
-				adjacents.push(self.get_index(row_below, z));
+				adjacents.push(self.get_index(x, row_below as usize));
 			}
 		} else {
-			let row_above = x as isize - 1;
-			let row_below = x + 1;
-			let z_right = z + 1;
+			let row_above = z as isize - 1;
+			let row_below = z + 1;
+			let x_right = x + 1;
 			if row_above >= 0 {
-				adjacents.push(self.get_index(row_above as usize, z));
-				if z_right < self.width {
-					adjacents.push(self.get_index(row_above as usize, z_right));
+				adjacents.push(self.get_index(x, row_above as usize));
+				if x_right < self.width {
+					adjacents.push(self.get_index(x_right as usize, row_above as usize));
 				}
 			}
 			if row_below < self.height() {
-				adjacents.push(self.get_index(row_below, z));
-				if z_right < self.width {
-					adjacents.push(self.get_index(row_below as usize, z_right));
+				adjacents.push(self.get_index(x, row_below));
+				if x_right < self.width {
+					adjacents.push(self.get_index(x_right as usize, row_below as usize));
 				}
 			}
 		}
-		let z_left = z as isize - 1;
-		let z_right = z + 1;
-		if z_left >= 0 {
-			adjacents.push(self.get_index(x, z_left as usize));
+		let x_left = x as isize - 1;
+		let x_right = x + 1;
+		if x_left >= 0 {
+			adjacents.push(self.get_index(x_left as usize, z));
 		}
-		if z_right < self.width {
-			adjacents.push(self.get_index(x, z_right));
+		if x_right < self.width {
+			adjacents.push(self.get_index(x_right as usize, z));
 		}
  
 		adjacents
@@ -218,3 +214,100 @@ impl Heightmap {
 
 }
 
+#[cfg(test)]
+mod tests {
+	use super::Heightmap;
+
+	#[test]
+	fn test_adjacents() {
+		// 0---1---2---3
+		//  \ / \ / \ / \
+		//   4---5---6---7
+		//  / \ / \ / \ /
+		// 8---9---10--11
+		//  \ / \ / \ / \
+		//   12--13--14--15
+
+		let map = Heightmap::with_size(4, 4, 1.0);
+
+		// Top left: index 0
+		let expected = vec![4, 1];
+		let actual = map.get_adjacent_vertices(0, 0);
+		assert_eq!(expected, actual);
+
+		// Top: index 1
+		let expected = vec![4, 5, 0, 2];
+		let actual = map.get_adjacent_vertices(1, 0);
+		assert_eq!(expected, actual);
+
+		// Top right: index 3
+		let expected = vec![6 ,7, 2];
+		let actual = map.get_adjacent_vertices(3, 0);
+		assert_eq!(expected, actual);
+
+		// Left, odd row: index 4
+		let expected = vec![0, 1, 8, 9, 5];
+		let actual = map.get_adjacent_vertices(0, 1);
+		assert_eq!(expected, actual);
+
+		// Middle, odd row: index 5
+		let expected = vec![1, 2, 9, 10, 4, 6];
+		let actual = map.get_adjacent_vertices(1, 1);
+		assert_eq!(expected, actual);
+
+		// Right, odd row: index 7
+		let expected = vec![3, 11, 6];
+		let actual = map.get_adjacent_vertices(3, 1);
+		assert_eq!(expected, actual);
+
+		// Left, even row: index 8
+		let expected = vec![4, 12, 9];
+		let actual = map.get_adjacent_vertices(0, 2);
+		assert_eq!(expected, actual);
+
+		// Middle, even row: index 10
+		let expected = vec![5, 6, 13, 14, 9, 11];
+		let actual = map.get_adjacent_vertices(2, 2);
+		assert_eq!(expected, actual);
+
+		// Right, even row: index 11
+		let expected = vec![6, 7, 14, 15, 10];
+		let actual = map.get_adjacent_vertices(3, 2);
+		assert_eq!(expected, actual);
+
+		// Bottom left, odd row: index 12
+		let expected = vec![8, 9, 13];
+		let actual = map.get_adjacent_vertices(0, 3);
+		assert_eq!(expected, actual);
+
+		// Bottom, odd row: index 14
+		let expected = vec![10, 11, 13, 15];
+		let actual = map.get_adjacent_vertices(2, 3);
+		assert_eq!(expected, actual);
+
+		// Bottom right, odd row: index 15
+		let expected = vec![11, 14];
+		let actual = map.get_adjacent_vertices(3, 3);
+		assert_eq!(expected, actual);
+
+		// For even bottom rows
+		let map = Heightmap::with_size(4, 3, 1.0);
+
+		// Bottom left, even row: index 8
+		let expected = vec![4, 9];
+		let actual = map.get_adjacent_vertices(0, 2);
+		assert_eq!(expected, actual);
+
+		// Bottom, even row: index 10
+		let expected = vec![5, 6, 9, 11];
+		let actual = map.get_adjacent_vertices(2, 2);
+		assert_eq!(expected, actual);
+
+		// Bottom right, even row: index 11
+		let expected = vec![6, 7, 10];
+		let actual = map.get_adjacent_vertices(3, 2);
+		assert_eq!(expected, actual);
+
+	}
+
+}

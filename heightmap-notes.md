@@ -93,10 +93,13 @@ A few useful values:
 
  * Slope between adjacent vertices `u` and `v` is simply `(u.Y - v.Y) / scale`, because all vertices are `scale` units apart.
  * The normal at `v` is the sum of the perpendiculars to `0v`, `1v`, etc., divided by 6. (This may not be the best way to calculate it. Also, there aren't always six adjacent vertices near the edge.)
- * Given a vec [x, y, z], the perpendicular towards [0, 1, 0] is
-	* if y is 0, it's just [0, 1, 0].
-	* if y is positive, it's [-x, 1/y, -z]
-	* if y is negative, it's [x, 1/y, z]
+ * Want to rotate around [z, 0, x]
+ * Rodrigues' formula:
+	* `v_rot = v cos theta + (axis cross v) sin theta + axis(axis dot v)(1 - cos theta)`
+	* Simplifies: `v_rot = axis cross v + axis(axis dot v)`
+		* `= [a_y v_z - a_z v_y, a_z v_x - a_x v_z, a_x v_y - a_y v_x] + …`
+		* `= [-a_z v_y, a_z v_x - a_x v_z, a_x v_y] + …`
+		* `… = axis (a_x v_x + a_z v_z)
 
 ## Texturing
 
