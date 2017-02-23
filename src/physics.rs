@@ -3,6 +3,7 @@
 //! Right now, this is just character movement and gravity.
 
 use MovementState;
+use linear_algebra::Vec3;
 
 
 /// A character's physical state.
@@ -12,8 +13,8 @@ use MovementState;
 /// speed, and acceleration due to gravity.
 #[derive(Clone, Copy, Debug)]
 pub struct CharacterState {
-	loc: [f32; 3],
-	vel: [f32; 3],
+	loc: Vec3<f32>,
+	vel: Vec3<f32>,
 	max_speed: f32,
 	decel: f32,
 	max_jump: f32,
@@ -34,8 +35,8 @@ impl CharacterState {
 	///  * `gravity`: The acceleration, in units/frame^2, this character
 	///		experiences downward on the Y axis due to gravity. Note that this
 	///		value should be positive.
-	pub fn new(loc: [f32; 3],
-			vel: [f32; 3],
+	pub fn new(loc: Vec3<f32>,
+			vel: Vec3<f32>,
 			max_speed: f32,
 			decel: f32,
 			max_jump: f32,
@@ -62,7 +63,7 @@ impl CharacterState {
 	///		reach maximum speed.
 	///  * Apply static gravitational acceleration.
 	///  * Clamp Y location above zero for floor clipping.
-	pub fn do_char_movement(&mut self, dir: &[f32; 3], movement: &mut MovementState) {
+	pub fn do_char_movement(&mut self, dir: &Vec3<f32>, movement: &mut MovementState) {
 
 		// Apply accelerations
 
@@ -121,7 +122,7 @@ impl CharacterState {
 	}
 
 	/// Get the location of this character.
-	pub fn loc(&self) -> &[f32; 3] {
+	pub fn loc(&self) -> &Vec3<f32> {
 		&self.loc
 	}
 }
