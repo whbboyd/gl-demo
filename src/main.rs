@@ -53,7 +53,7 @@ use errors::*;
 use glium::{Depth, DisplayBuild, DrawParameters, Program, Surface};
 use glium::draw_parameters::{BackfaceCullingMode, DepthTest};
 use glium::glutin::{Api, ElementState, Event, GlRequest, WindowBuilder};
-use linear_algebra::{Mat4, Vec3};
+use linear_algebra::{Mat3, Mat4, Vec3};
 use log::{LogLevel, LogRecord};
 use std::fs::File;
 use std::io::Read;
@@ -188,7 +188,7 @@ fn run() -> Result<()> {
 		CHAR_MAX_SPEED,
 		CHAR_DECEL,
 		CHAR_MAX_JUMP,
-		CHAR_GRAVITY,);
+		CHAR_GRAVITY);
 
 	let mut camera = display_math::Camera {
 		loc: character.loc().clone(),
@@ -207,22 +207,26 @@ fn run() -> Result<()> {
 		let view = display_math::view_matrix(
 			camera.loc,
 			camera.dir,
-			Vec3::from([0.0, 1.0, 0.0]),);
+			Vec3::from([0.0, 1.0, 0.0]));
 
-		let view_matrix: [[f32; 4]; 4] = view.clone().into();
-		let perspective_matrix: [[f32; 4]; 4] = perspective.clone().into();
-		let light_vector: [f32; 3] = light_pos.clone().into();
+		//TODO: None of this converting should be needed, ideally.
+		let light_vector_raw: [f32; 3] = light_pos.into();
+		let x: Mat3<f32> = view.into();
+		let light_matrix_raw: [[f32; 3]; 3] = x.into();
 		for object in objects.iter() {
-			let model_matrix: [[f32; 4]; 4] = object.model_matrix.clone().into();
+			let model_view = object.model_matrix * view;
+			let model_view_perspective_raw: [[f32; 4]; 4] = (model_view * perspective).into();
+			let x: Mat3<f32> = model_view.into();
+			let normal_raw: [[f32; 3]; 3] = x.into();
 			target.draw(
 				&object.model.geometry.vertices,
 				&object.model.geometry.indices,
 				&program,
 				&uniform! {
-					model_matrix: model_matrix,
-					view_matrix: view_matrix,
-					perspective_matrix: perspective_matrix,
-					u_light_pos: light_vector,
+					model_view_perspective_matrix: model_view_perspective_raw,
+					normal_matrix: normal_raw,
+					light_matrix: light_matrix_raw,
+					u_light_pos: light_vector_raw,
 					u_light_color: light_color,
 					u_mat_ambient: object.model.material.ambient,
 					u_mat_specular: object.model.material.specular,
