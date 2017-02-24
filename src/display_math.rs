@@ -20,32 +20,22 @@ pub struct Camera {
 /// a detailed description of what it does and how it works.
 pub fn view_matrix(position: Vec3<f32>, direction: Vec3<f32>, up: Vec3<f32>) -> Mat4<f32> {
 
-    let f = {
-        let f = direction;
-		// hypot is regrettably 2-argument only.
-        let len = f32::sqrt(f[0] * f[0] + f[1] * f[1] + f[2] * f[2]);
-        Vec3::from([f[0] / len, f[1] / len, f[2] / len])
-    };
+	let f = direction.normalize();
 
-	let s = up.cross(f);
-
-    let s = {
-        let len = f32::sqrt(s[0] * s[0] + s[1] * s[1] + s[2] * s[2]);
-        Vec3::from([s[0] / len, s[1] / len, s[2] / len])
-    };
+	let s = up.cross(f).normalize();
 
 	let u = f.cross(s);
 
-    let p = [-position[0] * s[0] - position[1] * s[1] - position[2] * s[2],
-             -position[0] * u[0] - position[1] * u[1] - position[2] * u[2],
-             -position[0] * f[0] - position[1] * f[1] - position[2] * f[2]];
+	let p = [-position[0] * s[0] - position[1] * s[1] - position[2] * s[2],
+	         -position[0] * u[0] - position[1] * u[1] - position[2] * u[2],
+	         -position[0] * f[0] - position[1] * f[1] - position[2] * f[2]];
 
-    Mat4::from([
-        [s[0], u[0], f[0], 0.0],
-        [s[1], u[1], f[1], 0.0],
-        [s[2], u[2], f[2], 0.0],
-        [p[0], p[1], p[2], 1.0],
-    ])
+	Mat4::from([
+		[s[0], u[0], f[0], 0.0],
+		[s[1], u[1], f[1], 0.0],
+		[s[2], u[2], f[2], 0.0],
+		[p[0], p[1], p[2], 1.0],
+	])
 
 }
 
