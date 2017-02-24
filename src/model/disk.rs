@@ -56,7 +56,7 @@ pub fn load_model(read: &mut io::Read) -> Result<(mem::Geometry, mem::Material)>
 		//TODO: Is a texture w a common or useful thing?
 		.map(|t| [t.u as f32, t.v as f32])
 		.collect::<Vec<_>>();
-	let mut indices: Vec<u16> = Vec::new();
+	let mut indices: Vec<u32> = Vec::new();
 	let mut mat: mem::Material = mem::default_mat();
 	for geom in object.geometry {
 		//TODO: Figure out the ownership to avoid the unneeded clone
@@ -72,13 +72,13 @@ pub fn load_model(read: &mut io::Read) -> Result<(mem::Geometry, mem::Material)>
 					//FIXME: wavefront obj is excessively flexible about
 					// indexing normals and texture UV. If anybody actually
 					// uses those capabilities, this will break silently.
-					indices.push(a.0 as u16);
+					indices.push(a.0 as u32);
 					if let Some(i) = a.1 { vertices[a.0].tex_uv = tex_uv[i]; }
 					if let Some(i) = a.2 { vertices[a.0].normal = normals[i]; }
-					indices.push(b.0 as u16);
+					indices.push(b.0 as u32);
 					if let Some(i) = b.1 { vertices[b.0].tex_uv = tex_uv[i]; }
 					if let Some(i) = b.2 { vertices[b.0].normal = normals[i]; }
-					indices.push(c.0 as u16);
+					indices.push(c.0 as u32);
 					if let Some(i) = c.1 { vertices[c.0].tex_uv = tex_uv[i]; }
 					if let Some(i) = c.2 { vertices[c.0].normal = normals[i]; }
 				}

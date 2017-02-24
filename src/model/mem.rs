@@ -25,10 +25,7 @@ pub struct Geometry {
 	/// The object's vertexes.
 	pub vertices: Vec<Vertex>,
 	/// The object's geometry, specified by indexes into the vertex vector.
-	///
-	/// TODO: u16 limits model complexity fairly significantly. Will this
-	/// cause problems?
-	pub indices: Vec<u16>,
+	pub indices: Vec<u32>,
 }
 
 /// In-memory material and texture specification.

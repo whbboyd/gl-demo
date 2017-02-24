@@ -41,12 +41,7 @@ impl Heightmap {
 			scale: f32) -> Heightmap {
 		let width = map.len();
 		let height = map[0].len();
-		let mut heightmap = Heightmap {
-			width: width,
-			heights: Vec::with_capacity(width * height),
-			scale: scale,
-		};
-		heightmap.heights.resize(width * height, HeightmapVertex { height: 0.0, metadata: () });
+		let mut heightmap = Heightmap::with_size(width, height, scale);
 		for (x, row) in map.iter().enumerate() {
 			for (z, cell) in row.iter().enumerate() {
 				let mut height = (cell.0 as f32 + cell.1 as f32 + cell.2 as f32) / 768.0;
@@ -119,22 +114,22 @@ impl Heightmap {
 				if x < self.width - 1 && z < self.height() - 1 {
 					if z % 2 == 0 {
 						// First triangle:
-						indices.push(self.get_index(x, z) as u16);
-						indices.push(self.get_index(x, z + 1) as u16);
-						indices.push(self.get_index(x + 1, z) as u16);
+						indices.push(self.get_index(x, z) as u32);
+						indices.push(self.get_index(x, z + 1) as u32);
+						indices.push(self.get_index(x + 1, z) as u32);
 						// Second triangle:
-						indices.push(self.get_index(x + 1, z) as u16);
-						indices.push(self.get_index(x, z + 1) as u16);
-						indices.push(self.get_index(x + 1, z + 1) as u16);
+						indices.push(self.get_index(x + 1, z) as u32);
+						indices.push(self.get_index(x, z + 1) as u32);
+						indices.push(self.get_index(x + 1, z + 1) as u32);
 					} else {
 						// First triangle:
-						indices.push(self.get_index(x, z) as u16);
-						indices.push(self.get_index(x + 1, z + 1) as u16);
-						indices.push(self.get_index(x + 1, z) as u16);
+						indices.push(self.get_index(x, z) as u32);
+						indices.push(self.get_index(x + 1, z + 1) as u32);
+						indices.push(self.get_index(x + 1, z) as u32);
 						// Second triangle:
-						indices.push(self.get_index(x, z) as u16);
-						indices.push(self.get_index(x, z + 1) as u16);
-						indices.push(self.get_index(x + 1, z + 1) as u16);
+						indices.push(self.get_index(x, z) as u32);
+						indices.push(self.get_index(x, z + 1) as u32);
+						indices.push(self.get_index(x + 1, z + 1) as u32);
 					}
 				}
 			}

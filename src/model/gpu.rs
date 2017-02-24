@@ -14,7 +14,7 @@ pub struct Geometry {
 	/// The uploaded vertex buffer.
 	pub vertices: VertexBuffer<Vertex>,
 	/// The uploaded index buffer.
-	pub indices: IndexBuffer<u16>,
+	pub indices: IndexBuffer<u32>,
 }
 impl Geometry {
 	/// Upload an in-memory `model::mem::Geometry` to GPU memory.
