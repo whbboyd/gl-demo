@@ -63,7 +63,16 @@ impl CharacterState {
 	///		reach maximum speed.
 	///  * Apply static gravitational acceleration.
 	///  * Clamp Y location above zero for floor clipping.
-	pub fn do_char_movement(&mut self, dir: &Vec3<f32>, movement: &mut MovementState) {
+	pub fn do_char_movement(&mut self, dir: &Vec3<f32>, movement: &mut MovementState,
+			/*XXX*/ heightmap: &::model::heightmap::Heightmap ) {
+
+		// Figure out ground height at our location
+		let mut height = 0.0;
+		//TODO: Get height from the heightmap
+		let hm_index = heightmap.get_index_from_position(self.loc);
+		let hm_vertex = heightmap.get_position(hm_index);
+		height = hm_vertex[1];
+//		println!("({},{},{}) → {} → ({},{},{})", self.loc[0],self.loc[1],self.loc[2], hm_index, hm_vertex[0],hm_vertex[1],hm_vertex[2]);
 
 		// Apply accelerations
 
@@ -88,7 +97,7 @@ impl CharacterState {
 			self.vel[2] -= dir[0] * accel;
 		}
 		if movement.jumping {
-			if self.loc[1] <= 0.0 {
+			if self.loc[1] <= height {
 				movement.can_jump = 5;
 				self.vel[1] += jump_accel;
 			} else if movement.can_jump > 0 {
@@ -114,9 +123,10 @@ impl CharacterState {
 		self.loc[1] += self.vel[1];
 		self.loc[2] += self.vel[2];
 
+
 		// Collision with ground
-		if self.loc[1] <= 0.0 {
-			self.loc[1] = 0.0;
+		if self.loc[1] <= height {
+			self.loc[1] = height;
 			self.vel[1] = 0.0;
 		}
 	}

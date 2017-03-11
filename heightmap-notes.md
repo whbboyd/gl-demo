@@ -109,3 +109,22 @@ Another consideration worth considering: depending on slope, not every heightmap
 
 Far and away the easiest option is to map texture u,v to vertex x,z with appropriate wrapping. The major downside here is that no two tris have the same texture mapped to them. Do we care? (Signs point to no.)
 
+# Heightmap physics notes
+
+Heightmap collision is relatively easy; find the tri directly below the collision point, calculate height based on its vertices, and do regular ground clipping to that height.
+
+## Finding a heightmap tri
+
+We need a way to go from x,z to the three vertices of a triangle. Right now, the heightmap itself doesn't know enough to do this because the main method moves it around with a model matrix. So, we'll have the heightmap take an offset in x/z and apply that to each vertex.
+
+Going from 3D coordinates to heightmap tri is now a matter of inverting the index-to-vertex transformation:
+
+ * `x = (idx % width) + (idx % 2 == 0 ? 0 : 0.5) * resolution + x_off`
+	* → `(x - x_off) / resolution = idx % width + (idx % 2 == 0 ? 0 : 0.5)`
+	* → `(x - x_off) / resolution = idx`
+ * `z = idx / width * 0.866… * resolution + z_off`
+	* → `(z - z_off) / resolution / 0.866… * width = idx
+
+Within bounds, floor this and we won't be more than one vertex off. (Need to deal with the parity offset on x, I think that's the biggest error.) Out of bounds…? We can detect this, so we could just ignore it, or set a default floor.
+
+

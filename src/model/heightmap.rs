@@ -19,16 +19,24 @@ struct HeightmapVertex {
 pub struct Heightmap {
 	width: usize,
 	heights: Vec<HeightmapVertex>,
-	scale: f32,
+	x_offset: f32,
+	z_offset: f32,
+	resolution: f32,
 }
 impl Heightmap {
 
 	/// Create a heightmap at a particular size.
-	pub fn with_size(width: usize, height: usize, scale: f32) -> Heightmap {
+	pub fn with_size(width: usize,
+			height: usize,
+			x_offset: f32,
+			z_offset: f32,
+			resolution: f32) -> Heightmap {
 		let mut heightmap = Heightmap {
 			width: width,
 			heights: Vec::with_capacity(width * height),
-			scale: scale,
+			x_offset: x_offset,
+			z_offset: z_offset,
+			resolution: resolution,
 		};
 		heightmap.heights.resize(width * height, HeightmapVertex { height: 0.0, metadata: () });
 		heightmap
@@ -38,10 +46,12 @@ impl Heightmap {
 	pub fn from_map(map: &Vec<Vec<(u8, u8, u8, u8)>>,
 			lowest: f32,
 			highest: f32,
-			scale: f32) -> Heightmap {
+			x_offset: f32,
+			z_offset: f32,
+			resolution: f32) -> Heightmap {
 		let width = map.len();
 		let height = map[0].len();
-		let mut heightmap = Heightmap::with_size(width, height, scale);
+		let mut heightmap = Heightmap::with_size(width, height, x_offset, z_offset, resolution);
 		for (x, row) in map.iter().enumerate() {
 			for (z, cell) in row.iter().enumerate() {
 				let mut height = (cell.0 as f32 + cell.1 as f32 + cell.2 as f32) / 768.0;
@@ -52,7 +62,7 @@ impl Heightmap {
 		heightmap
 	}
 
-	/// Set the height (pre-scale) at a particular x/z coordinate.
+	/// Set the height at a particular x/z coordinate.
 	pub fn set_height(&mut self, x: usize, y: usize, height: f32) {
 		let index = self.get_index(x, y);
 		self.heights[index].height = height;
@@ -147,14 +157,22 @@ impl Heightmap {
 	}
 
 	/// Get the position in 3D space of a vertex by index.
-	fn get_position(&self, index: usize) -> Vec3<f32> {
+	pub fn get_position(&self, index: usize) -> Vec3<f32> {
 		Vec3::from([
 			((index % self.width) as f32 +
 				(if (index / self.width) % 2 == 0 { 0.0 } else { 0.5 }))
-				* self.scale,
-			self.heights[index].height * self.scale,
-			(index / self.width) as f32 * ROW_SPACING * self.scale,
+				* self.resolution + self.x_offset,
+			self.heights[index].height,
+			(index / self.width) as f32 * ROW_SPACING * self.resolution + self.z_offset,
 		])
+	}
+
+	pub fn get_index_from_position(&self, pos: Vec3<f32>) -> usize {
+		let unpos_x = ((pos[0] - self.x_offset) / self.resolution).floor();
+		let unpos_z = ((pos[2] - self.z_offset) / self.resolution /	ROW_SPACING).floor() *
+				(self.width as f32);
+		let unpos = unpos_x + unpos_z;
+		unpos as usize
 	}
 
 	/// Get the list of vertices (by index) adjacent to the given vertex.
@@ -212,6 +230,7 @@ impl Heightmap {
 #[cfg(test)]
 mod tests {
 	use super::Heightmap;
+	use linear_algebra::Vec3;
 
 	#[test]
 	fn test_adjacents() {
@@ -223,7 +242,7 @@ mod tests {
 		//  \ / \ / \ / \
 		//   12--13--14--15
 
-		let map = Heightmap::with_size(4, 4, 1.0);
+		let map = Heightmap::with_size(4, 4, 0.0, 0.0, 1.0);
 
 		// Top left: index 0
 		let expected = vec![4, 1];
@@ -286,7 +305,7 @@ mod tests {
 		assert_eq!(expected, actual);
 
 		// For even bottom rows
-		let map = Heightmap::with_size(4, 3, 1.0);
+		let map = Heightmap::with_size(4, 3, 0.0, 0.0, 1.0);
 
 		// Bottom left, even row: index 8
 		let expected = vec![4, 9];
@@ -305,4 +324,16 @@ mod tests {
 
 	}
 
+	#[test]
+	fn test_get_index_from_position() {
+		let map = Heightmap::with_size(4, 4, 0.0, 0.0, 1.0);
+
+		let pos = map.get_position(8);
+		let unpos = map.get_index_from_position(pos);
+		assert_eq!(8, unpos);
+
+		let pos = Vec3::from([0.5, 0.0, 0.5]);
+		assert_eq!(0, map.get_index_from_position(pos));
+		
+	}
 }

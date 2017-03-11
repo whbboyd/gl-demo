@@ -100,7 +100,12 @@ fn run() -> Result<()> {
 	let file = try!{ File::open(FLOOR_HEIGHTMAP).chain_err(|| "Could not load heightmap") };
 	let heightmap = try!{ model::disk::load_texture(&mut BufReader::new(file))
 			.chain_err(|| "Could not load heightmap") };
-	let floor_geom = model::heightmap::Heightmap::from_map(&heightmap, 0.0, 10.0, 10.0);
+	let floor_geom = model::heightmap::Heightmap::from_map(&heightmap,
+			-0.5,
+			100.0,
+			-500.0,
+			-433.0,
+			10.0);
 	let mut file = try!{ File::open(FLOOR_MATERIALS)
 			.chain_err(|| "Could not load floor materials") };
 	let floor_mat = try!{ try!{ model::disk::load_mats(&mut file) }.remove("Floor")
@@ -169,7 +174,7 @@ fn run() -> Result<()> {
 			[1.0,		0.0,	0.0,	0.0],
 			[0.0,		1.0,	0.0,	0.0],
 			[0.0,		0.0,	1.0,	0.0],
-			[-500.0,	-0.5,	-500.0,	1.0] ], ) } );
+			[0.0,		0.0,	0.0,	1.0] ], ) } );
 
 	let light_pos = Vec3::from([-1.0, 0.4, 0.9f32]);
 	let light_color = (1.0, 1.0, 1.0f32);
@@ -292,7 +297,7 @@ fn run() -> Result<()> {
 			}
 		}
 
-		character.do_char_movement(&camera.dir, &mut movement);
+		character.do_char_movement(&camera.dir, &mut movement, &floor_geom);
 
 		// Update camera
 		camera.loc = character.loc().clone();
