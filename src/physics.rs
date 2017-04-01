@@ -67,12 +67,14 @@ impl CharacterState {
 			/*XXX*/ heightmap: &::model::heightmap::Heightmap ) {
 
 		// Figure out ground height at our location
-		let mut height = 0.0;
-		//TODO: Get height from the heightmap
-		let hm_index = heightmap.get_index_from_position(self.loc);
-		let hm_vertex = heightmap.get_position(hm_index);
-		height = hm_vertex[1];
-//		println!("({},{},{}) → {} → ({},{},{})", self.loc[0],self.loc[1],self.loc[2], hm_index, hm_vertex[0],hm_vertex[1],hm_vertex[2]);
+		let hm_vertices = heightmap.get_tri_from_position(&self.loc);
+		let hm_normal = (hm_vertices[0] - hm_vertices[2])
+				.cross(hm_vertices[0] - hm_vertices[1]);
+		let hm_d = hm_normal.dot(hm_vertices[0]);
+		let height = (hm_d -
+				hm_normal[0] * self.loc[0] -
+				hm_normal[2] * self.loc[2]) /
+				hm_normal[1];
 
 		// Apply accelerations
 

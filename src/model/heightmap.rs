@@ -167,12 +167,55 @@ impl Heightmap {
 		])
 	}
 
-	pub fn get_index_from_position(&self, pos: Vec3<f32>) -> usize {
-		let unpos_x = ((pos[0] - self.x_offset) / self.resolution).floor();
-		let unpos_z = ((pos[2] - self.z_offset) / self.resolution /	ROW_SPACING).floor() *
-				(self.width as f32);
-		let unpos = unpos_x + unpos_z;
-		unpos as usize
+	fn get_index_from_position(&self, pos: &Vec3<f32>) -> usize {
+		let unpos_z = ((pos[2] - self.z_offset) / self.resolution /	ROW_SPACING).floor();
+		let unpos_x = ((pos[0] - self.x_offset) / self.resolution -
+			(if unpos_z % 2.0 == 0.0 { 0.0 } else { 0.5 } )).floor();
+		self.get_index(unpos_x as usize, unpos_z as usize)
+	}
+
+	/// Get the triangle under the given position in 3D space
+	pub fn get_tri_from_position(&self, pos: &Vec3<f32>) -> [Vec3<f32>; 3] {
+		// For reference
+		//
+		//    A-----B
+		//   /|\ 2 /|\
+		//  / |1\ /3| \
+		// C--k--D--l--E
+		//
+		// As a precondition, pos must be within the bounds of the heightmap.
+		// Behavior is undefined if it's not.
+		// TODO: Behave reasonably out of bounds. Floor out of bounds always at -inf?
+		let vtx_a = self.get_index_from_position(pos);
+		let vtx_a_pos = self.get_position(vtx_a);
+		let vtx_a_z = vtx_a / self.width;
+		let vtx_a_x = vtx_a % self.width;
+		let vtx_d_z = vtx_a_z + 1;
+		let vtx_d_x = if vtx_a_z % 2 == 0 { vtx_a_x } else { vtx_a_x + 1};
+		let vtx_d = self.get_index(vtx_d_x, vtx_d_z);
+		let vtx_d_pos = self.get_position(vtx_d);
+
+		// Case 1 or 2/3: are we below a-d?
+		let m = (vtx_d_pos[2] - vtx_a_pos[2]) / (vtx_d_pos[0] - vtx_a_pos[0]);
+		let b = vtx_a_pos[2] - m * vtx_a_pos[0];
+		if pos[2] > m * pos[0] + b {
+			// Case 1
+			let vtx_c_pos = self.get_position(vtx_d - 1);
+			return [vtx_a_pos, vtx_d_pos, vtx_c_pos];
+		} else {
+			//Case 2 or 3: are we above b-d?
+			let vtx_b_pos = self.get_position(vtx_a + 1);
+			let m = (vtx_b_pos[2] - vtx_d_pos[2]) / (vtx_b_pos[0] - vtx_d_pos[0]);
+			let b = vtx_b_pos[2] - m * vtx_b_pos[0];
+			if pos[2] < m * pos[0] + b {
+				// Case 2
+				return [vtx_a_pos, vtx_b_pos, vtx_d_pos];
+			} else {
+				// Case 3
+				let vtx_e_pos = self.get_position(vtx_d + 1);
+				return [vtx_b_pos, vtx_e_pos, vtx_d_pos];
+			}
+		}
 	}
 
 	/// Get the list of vertices (by index) adjacent to the given vertex.
@@ -328,12 +371,19 @@ mod tests {
 	fn test_get_index_from_position() {
 		let map = Heightmap::with_size(4, 4, 0.0, 0.0, 1.0);
 
-		let pos = map.get_position(8);
-		let unpos = map.get_index_from_position(pos);
-		assert_eq!(8, unpos);
+		for index in 0..16 {
+			let pos = map.get_position(index);
+			let unpos = map.get_index_from_position(&pos);
+			assert_eq!(index, unpos,
+				"({}, {}): expected {}, got {}", pos[0], pos[2], index, unpos);
+		}
 
 		let pos = Vec3::from([0.5, 0.0, 0.5]);
-		assert_eq!(0, map.get_index_from_position(pos));
+		assert_eq!(0, map.get_index_from_position(&pos));
+		let pos = Vec3::from([1.49, 0.0, 1.0]);
+		assert_eq!(4, map.get_index_from_position(&pos));
+		let pos = Vec3::from([1.51, 0.0, 1.0]);
+		assert_eq!(5, map.get_index_from_position(&pos));
 		
 	}
 }
