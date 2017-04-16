@@ -45,6 +45,7 @@ pub mod display_math;
 pub mod linear_algebra;
 pub mod model;
 pub mod physics;
+pub mod renderable;
 
 mod errors { error_chain! { } }
 
@@ -53,9 +54,10 @@ use errors::*;
 use glium::{Depth, DisplayBuild, DrawParameters, Program, Surface};
 use glium::draw_parameters::{BackfaceCullingMode, DepthTest};
 use glium::glutin::{Api, ElementState, Event, GlRequest, WindowBuilder};
-use glium::uniforms::SamplerWrapFunction;
-use linear_algebra::{Mat3, Mat4, Vec3};
+use linear_algebra::{Mat4, Vec3};
 use log::{LogLevel, LogRecord};
+use model::heightmap::Heightmap;
+use renderable::Renderable;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use time::{now, PreciseTime};
@@ -93,25 +95,6 @@ fn main() {
 fn run() -> Result<()> {
 	info!("Starting demo...");
 
-	info!("Loading models and textures...");
-	let library = model::mem::ModelLibrary::new();
-	let mut file = try!{ File::open(TEAPOT_PATH).chain_err(|| "Could not load teapot model") };
-	let teapot = try!{ library.load_model(&mut file) };
-	let file = try!{ File::open(FLOOR_HEIGHTMAP).chain_err(|| "Could not load heightmap") };
-	let heightmap = try!{ model::disk::load_texture(&mut BufReader::new(file))
-			.chain_err(|| "Could not load heightmap") };
-	let floor_geom = model::heightmap::Heightmap::from_map(&heightmap,
-			-0.5,
-			100.0,
-			-500.0,
-			-433.0,
-			10.0);
-	let mut file = try!{ File::open(FLOOR_MATERIALS)
-			.chain_err(|| "Could not load floor materials") };
-	let floor_mat = try!{ try!{ model::disk::load_mats(&mut file) }.remove("Floor")
-			.ok_or(Error::from("Floor material library missing floor material (\"Floor\")")) };
-	let floor = try!{ library.add_model(floor_geom.as_geometry(), floor_mat) };
-
 	info!("Initializing display...");
 	let display = try!{ WindowBuilder::new()
 			.with_depth_buffer(24)
@@ -121,6 +104,27 @@ fn run() -> Result<()> {
 			.with_gl(GlRequest::Specific(Api::OpenGl, (2, 1)))
 			.build_glium()
 			.map_err(|e| { Error::from(format!("{:?}", e)) } ) };
+
+	info!("Loading models and textures...");
+	let library = model::mem::ModelLibrary::new();
+	let mut file = try!{ File::open(TEAPOT_PATH).chain_err(|| "Could not load teapot model") };
+	let teapot = try!{ library.load_model(&mut file) };
+	let mut file = try!{ File::open(FLOOR_MATERIALS)
+			.chain_err(|| "Could not load floor materials") };
+	let floor_mat = try!{ try!{ model::disk::load_mats(&mut file) }.remove("Floor")
+			.ok_or(Error::from("Floor material library missing floor material (\"Floor\")")) };
+	let file = try!{ File::open(FLOOR_HEIGHTMAP).chain_err(|| "Could not load heightmap") };
+	let heightmap = try!{ model::disk::load_texture(&mut BufReader::new(file))
+			.chain_err(|| "Could not load heightmap") };
+	let mut floor = model::heightmap::simpleheightmap::SimpleHeightmap::from_map(
+			&heightmap,
+			0.0,
+			100.0,
+			-500.0,
+			-433.0,
+			10.0,
+			&display,
+			floor_mat);
 
 	info!("Loading shaders...");
 	let mut vertex_shader = String::new();
@@ -153,7 +157,6 @@ fn run() -> Result<()> {
 
 	info!("Building world...");
 	let gpu_teapot = try!{ model::gpu::Model::from_mem(&display, &teapot) };
-	let gpu_floor = try!{ model::gpu::Model::from_mem(&display, &floor) };
 	let mut objects = Vec::new();
 	for x in 0u8..3 { for y in 0u8..3 { for z in 0u8..3 {
 		let obx = x as f32 * 1.5;
@@ -168,13 +171,6 @@ fn run() -> Result<()> {
 					[0.0,	0.0,	scale,	0.0],
 					[obx,	oby,	obz,	1.0] ] ), } );
 	} } };
-	objects.push(model::gpu::ModelInstance {
-		model: &gpu_floor,
-		model_matrix: Mat4::from( [
-			[1.0,		0.0,	0.0,	0.0],
-			[0.0,		1.0,	0.0,	0.0],
-			[0.0,		0.0,	1.0,	0.0],
-			[0.0,		0.0,	0.0,	1.0] ], ) } );
 
 	let light_pos = Vec3::from([-1.0, 0.4, 0.9f32]);
 	let light_color = (1.0, 1.0, 1.0f32);
@@ -209,6 +205,7 @@ fn run() -> Result<()> {
 		dir: Vec3::from([1.0, 0.0, 0.0]),
 	};
 	camera.loc[1] += 0.5;
+	floor.update_lod(&camera.loc);
 
 	// Main program loop
 	info!("Starting program loop...");
@@ -223,32 +220,19 @@ fn run() -> Result<()> {
 			camera.dir,
 			Vec3::from([0.0, 1.0, 0.0]));
 
-		//TODO: None of this converting should be needed, ideally.
-		let light_vector_raw: [f32; 3] = light_pos.into();
-		let x: Mat3<f32> = view.into();
-		let light_matrix_raw: [[f32; 3]; 3] = x.into();
+		let renderstate = renderable::DefaultRenderState {
+			view: view,
+			perspective: perspective,
+			light_pos: light_pos,
+			light_color: light_color,
+			params: &params,
+			program: &program,
+		};
+
 		for object in objects.iter() {
-			let model_view = object.model_matrix * view;
-			let model_view_perspective_raw: [[f32; 4]; 4] = (model_view * perspective).into();
-			let x: Mat3<f32> = model_view.into();
-			let normal_raw: [[f32; 3]; 3] = x.into();
-			target.draw(
-				&object.model.geometry.vertices,
-				&object.model.geometry.indices,
-				&program,
-				&uniform! {
-					model_view_perspective_matrix: model_view_perspective_raw,
-					normal_matrix: normal_raw,
-					light_matrix: light_matrix_raw,
-					u_light_pos: light_vector_raw,
-					u_light_color: light_color,
-					u_mat_ambient: object.model.material.ambient,
-					u_mat_specular: object.model.material.specular,
-					u_mat_texture: object.model.material.texture
-						.sampled().wrap_function(SamplerWrapFunction::Repeat),
-					},
-				&params).unwrap();
+			object.render(&renderstate, &mut target);
 		}
+		floor.render(&renderstate, &mut target);
 
 		target.finish().unwrap();
 
@@ -297,11 +281,12 @@ fn run() -> Result<()> {
 			}
 		}
 
-		character.do_char_movement(&camera.dir, &mut movement, &floor_geom);
+		character.do_char_movement(&camera.dir, &mut movement, &floor);
 
 		// Update camera
 		camera.loc = character.loc().clone();
 		camera.loc[1] += 0.5;
+		floor.update_lod(&camera.loc);
 
 		// Wait for end of frame
 		// We enabled vsync when creating the window, so this happens automatically.

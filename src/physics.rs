@@ -64,7 +64,7 @@ impl CharacterState {
 	///  * Apply static gravitational acceleration.
 	///  * Clamp Y location above zero for floor clipping.
 	pub fn do_char_movement(&mut self, dir: &Vec3<f32>, movement: &mut MovementState,
-			/*XXX*/ heightmap: &::model::heightmap::Heightmap ) {
+			/*XXX*/ heightmap: &::model::heightmap::Heightmap<f32> ) {
 
 		// Figure out ground height at our location
 		let hm_vertices = heightmap.get_tri_from_position(&self.loc);
