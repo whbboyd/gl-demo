@@ -30,6 +30,18 @@ impl<'a> Heightmap<'a, f32> for SimpleHeightmap<'a> {
 
 	/// Get the triangle under the given position in 3D space
 	fn get_tri_from_position(&self, pos: &Vec3<f32>) -> [Vec3<f32>; 3] {
+		let g = &self.geometry;
+		// If we're not over the heightmap, collide at -infinity
+		//TODO: These bounds could certainly be tighter, but it's not likely to matter
+		if pos[0] < g.x_offset  + 1.0 * g.resolution ||
+				pos[0] > g.x_offset + (g.width as f32 - 1.0) * g.resolution ||
+				pos[2] < g.z_offset + 1.0 * g.resolution ||
+				pos[2] > g.z_offset + (g.height() as f32 - 1.0) * g.resolution * ROW_SPACING {
+			return [Vec3::from([0.0, f32::NEG_INFINITY, 0.0]),
+					Vec3::from([1.0, f32::NEG_INFINITY, 0.0]),
+					Vec3::from([0.0, f32::NEG_INFINITY, 1.0])];
+		}
+
 		// For reference
 		//
 		//    A-----B
@@ -37,28 +49,25 @@ impl<'a> Heightmap<'a, f32> for SimpleHeightmap<'a> {
 		//  / |1\ /3| \
 		// C--k--D--l--E
 		//
-		// As a precondition, pos must be within the bounds of the heightmap.
-		// Behavior is undefined if it's not.
-		// TODO: Behave reasonably out of bounds. Floor out of bounds always at -inf?
-		let vtx_a = self.geometry.get_index_from_position(pos);
-		let vtx_a_pos = self.geometry.get_position(vtx_a);
-		let vtx_a_z = vtx_a / self.geometry.width;
-		let vtx_a_x = vtx_a % self.geometry.width;
+		let vtx_a = g.get_index_from_position(pos);
+		let vtx_a_pos = g.get_position(vtx_a);
+		let vtx_a_z = vtx_a / g.width;
+		let vtx_a_x = vtx_a % g.width;
 		let vtx_d_z = vtx_a_z + 1;
 		let vtx_d_x = if vtx_a_z % 2 == 0 { vtx_a_x } else { vtx_a_x + 1};
-		let vtx_d = self.geometry.get_index(vtx_d_x, vtx_d_z);
-		let vtx_d_pos = self.geometry.get_position(vtx_d);
+		let vtx_d = g.get_index(vtx_d_x, vtx_d_z);
+		let vtx_d_pos = g.get_position(vtx_d);
 
-		// Case 1 or 2/3: are we below a-d?
+		// Case 1 or 2/3: are we below A-D?
 		let m = (vtx_d_pos[2] - vtx_a_pos[2]) / (vtx_d_pos[0] - vtx_a_pos[0]);
 		let b = vtx_a_pos[2] - m * vtx_a_pos[0];
 		if pos[2] > m * pos[0] + b {
 			// Case 1
-			let vtx_c_pos = self.geometry.get_position(vtx_d - 1);
+			let vtx_c_pos = g.get_position(vtx_d - 1);
 			return [vtx_a_pos, vtx_d_pos, vtx_c_pos];
 		} else {
-			//Case 2 or 3: are we above b-d?
-			let vtx_b_pos = self.geometry.get_position(vtx_a + 1);
+			//Case 2 or 3: are we above B-D?
+			let vtx_b_pos = g.get_position(vtx_a + 1);
 			let m = (vtx_b_pos[2] - vtx_d_pos[2]) / (vtx_b_pos[0] - vtx_d_pos[0]);
 			let b = vtx_b_pos[2] - m * vtx_b_pos[0];
 			if pos[2] < m * pos[0] + b {
@@ -66,7 +75,7 @@ impl<'a> Heightmap<'a, f32> for SimpleHeightmap<'a> {
 				return [vtx_a_pos, vtx_b_pos, vtx_d_pos];
 			} else {
 				// Case 3
-				let vtx_e_pos = self.geometry.get_position(vtx_d + 1);
+				let vtx_e_pos = g.get_position(vtx_d + 1);
 				return [vtx_b_pos, vtx_e_pos, vtx_d_pos];
 			}
 		}
