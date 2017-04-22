@@ -25,7 +25,7 @@ pub struct Geometry {
 	/// The object's vertexes.
 	pub vertices: Vec<Vertex>,
 	/// The object's geometry, specified by indexes into the vertex vector.
-	pub indices: Vec<u32>,
+	pub indices: Vec<u16>,
 }
 
 /// In-memory material and texture specification.

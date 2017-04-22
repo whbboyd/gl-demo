@@ -1,6 +1,6 @@
 //! Module for dealing with heightmaps.
 
-/// Simple in-memory heightmap with one level of detail.
+/// Simple in-memory heightmap with multiple levels of detail.
 pub mod simpleheightmap;
 
 use linear_algebra::Vec3;

@@ -13,17 +13,18 @@ use glium::Frame;
 const ROW_SPACING: f32 = 0.8660254037844386;
 
 #[derive(Copy, Clone, Debug)]
-struct HeightmapVertex {
+pub struct HeightmapVertex {
 	height: f32,
 	metadata: (),
 }
 
-/// A heightmap, with only one LoD stored entirely in-memory.
+/// A heightmap, with high-resolution geometry stored entirely in-memory.
 pub struct SimpleHeightmap<'a> {
 	geometry: SimpleHeightmapGeometry,
 	display: &'a Facade,
 	material: Rc<mem::Material>,
-	model: Option<gpu::Model>,
+	lods: Vec<gpu::Model>,
+	tile_size: usize,
 }
 
 impl<'a> Heightmap<'a, f32> for SimpleHeightmap<'a> {
@@ -85,8 +86,8 @@ impl<'a> Heightmap<'a, f32> for SimpleHeightmap<'a> {
 	fn update_lod(&mut self, pos: &Vec3<f32>) {
 		// Ignore pos.
 		let _ = pos;
-		if self.model.is_none() {
-			self.model = Some(gpu::Model::from_mem(self.display,
+		if self.lods.is_empty() {
+			self.lods.push(gpu::Model::from_mem(self.display,
 					&mem::Model {
 						geometry: Rc::new(self.geometry.as_geometry()),
 						material: self.material.clone(),
@@ -97,14 +98,16 @@ impl<'a> Heightmap<'a, f32> for SimpleHeightmap<'a> {
 
 impl<'a, 'b> Renderable<&'a DefaultRenderState<'a>, &'a mut Frame> for SimpleHeightmap<'b> {
 	fn render(&self, renderstate: &'a DefaultRenderState, target: &mut Frame) {
-		gpu::ModelInstance {
-			model: self.model.as_ref().unwrap(),
-			model_matrix: Mat4::from( [
-				[1.0,		0.0,	0.0,	0.0],
-				[0.0,		1.0,	0.0,	0.0],
-				[0.0,		0.0,	1.0,	0.0],
-				[0.0,		0.0,	0.0,	1.0] ], ) }
-			.render(renderstate, target)
+		for model in self.lods.iter() {
+			gpu::ModelInstance {
+				model: &model,
+				model_matrix: Mat4::from( [
+					[1.0,		0.0,	0.0,	0.0],
+					[0.0,		1.0,	0.0,	0.0],
+					[0.0,		0.0,	1.0,	0.0],
+					[0.0,		0.0,	0.0,	1.0] ], ) }
+				.render(renderstate, target)
+		}
 	}
 }
 
@@ -127,7 +130,8 @@ impl<'a> SimpleHeightmap<'a> {
 				resolution: resolution, },
 			display: display,
 			material: Rc::new(material),
-			model: None,
+			lods: Vec::new(),
+			tile_size: 256,
 		};
 		heightmap.geometry.heights.resize(
 				width * height,
@@ -160,7 +164,7 @@ impl<'a> SimpleHeightmap<'a> {
 
 }
 
-struct SimpleHeightmapGeometry {
+pub struct SimpleHeightmapGeometry {
 	width: usize,
 	heights: Vec<HeightmapVertex>,
 	x_offset: f32,
@@ -232,22 +236,22 @@ impl SimpleHeightmapGeometry {
 				if x < self.width - 1 && z < self.height() - 1 {
 					if z % 2 == 0 {
 						// First triangle:
-						indices.push(self.get_index(x, z) as u32);
-						indices.push(self.get_index(x, z + 1) as u32);
-						indices.push(self.get_index(x + 1, z) as u32);
+						indices.push(self.get_index(x, z) as u16);
+						indices.push(self.get_index(x, z + 1) as u16);
+						indices.push(self.get_index(x + 1, z) as u16);
 						// Second triangle:
-						indices.push(self.get_index(x + 1, z) as u32);
-						indices.push(self.get_index(x, z + 1) as u32);
-						indices.push(self.get_index(x + 1, z + 1) as u32);
+						indices.push(self.get_index(x + 1, z) as u16);
+						indices.push(self.get_index(x, z + 1) as u16);
+						indices.push(self.get_index(x + 1, z + 1) as u16);
 					} else {
 						// First triangle:
-						indices.push(self.get_index(x, z) as u32);
-						indices.push(self.get_index(x + 1, z + 1) as u32);
-						indices.push(self.get_index(x + 1, z) as u32);
+						indices.push(self.get_index(x, z) as u16);
+						indices.push(self.get_index(x + 1, z + 1) as u16);
+						indices.push(self.get_index(x + 1, z) as u16);
 						// Second triangle:
-						indices.push(self.get_index(x, z) as u32);
-						indices.push(self.get_index(x, z + 1) as u32);
-						indices.push(self.get_index(x + 1, z + 1) as u32);
+						indices.push(self.get_index(x, z) as u16);
+						indices.push(self.get_index(x, z + 1) as u16);
+						indices.push(self.get_index(x + 1, z + 1) as u16);
 					}
 				}
 			}
