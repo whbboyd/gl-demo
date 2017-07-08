@@ -4,6 +4,7 @@ use linear_algebra::{Mat4, Vec3};
 use model::{gpu, mem, Vertex};
 use model::heightmap::Heightmap;
 use renderable::{DefaultRenderState, Renderable};
+use std::cmp::min;
 use std::f32;
 use std::rc::Rc;
 use glium::Frame;
@@ -13,7 +14,7 @@ use glium::Frame;
 const ROW_SPACING: f32 = 0.8660254037844386;
 
 #[derive(Copy, Clone, Debug)]
-pub struct HeightmapVertex {
+struct HeightmapVertex {
 	height: f32,
 	metadata: (),
 }
@@ -25,6 +26,7 @@ pub struct SimpleHeightmap<'a> {
 	material: Rc<mem::Material>,
 	lods: Vec<gpu::Model>,
 	tile_size: usize,
+	lod_zone: (f32, f32),
 }
 
 impl<'a> Heightmap<'a, f32> for SimpleHeightmap<'a> {
@@ -82,18 +84,63 @@ impl<'a> Heightmap<'a, f32> for SimpleHeightmap<'a> {
 		}
 	}
 
-	/// Generate the GPU geometry, if we haven't already
+	/// Update the GPU geometry to account for changing level of detail with location.
 	fn update_lod(&mut self, pos: &Vec3<f32>) {
-		// Ignore pos.
-		let _ = pos;
-		if self.lods.is_empty() {
-			self.lods.push(gpu::Model::from_mem(self.display,
-					&mem::Model {
-						geometry: Rc::new(self.geometry.as_geometry()),
-						material: self.material.clone(),
-					}).unwrap() );
+		// Compute LoD zone under pos
+		let lod_zone_size = self.tile_size as f32 * self.geometry.resolution;
+		let diff = ((pos[0] - self.lod_zone.0).abs(), (pos[2] - self.lod_zone.1).abs());
+		if diff.0.is_nan() || diff.1.is_nan() ||
+			diff.0 > lod_zone_size || diff.0 < 0.0 ||
+			diff.1 > lod_zone_size || diff.1 < 0.0 {
+			// Update LoD zone 
+			let new_lod_zone = (pos[0] - (pos[0] % (lod_zone_size / 2.0)),
+				pos[2] - (pos[2] % (lod_zone_size / 2.0)));
+			//TODO: Range.step_by is recent and unstable.
+//XXX
+self.lods.clear();
+			let mut x = 0;
+			while x < self.geometry.width {
+				let mut z = 0;
+				while z < self.geometry.height() {
+					let lod = gen_lod(&self, pos, x, z);
+
+					let top_z = z;
+					let left_x = x;
+					let bottom_z = z + self.tile_size + lod;
+					let right_x = x + self.tile_size + lod;
+					self.lods.push(gpu::Model::from_mem(self.display,
+							&mem::Model {
+								geometry: Rc::new(self.geometry.as_geometry(
+										lod, top_z, left_x, bottom_z, right_x)),
+								material: self.material.clone(),
+							}).unwrap() );
+					z += self.tile_size;
+				}
+				x += self.tile_size;
+			}
+			self.lod_zone = new_lod_zone;
+		} else {
 		}
 	}
+
+}
+
+fn gen_lod(hm: &SimpleHeightmap, pos: &Vec3<f32>, x: usize, z: usize) -> usize {
+	// Compute tile center
+	let center_x = (x as f32 + hm.tile_size as f32 / 2.0) *
+			hm.geometry.resolution + hm.geometry.x_offset;
+	let center_z = (z as f32 + hm.tile_size as f32 / 2.0) *
+			hm.geometry.resolution * ROW_SPACING + hm.geometry.z_offset;
+
+	// Compute distance between location and center
+	let distance_square = (pos[0] - center_x) * (pos[0] - center_x) +
+			(pos[2] - center_z) * (pos[2] - center_z);
+	let tile_distance_square = distance_square / 
+			(hm.tile_size as f32 * hm.geometry.resolution *
+			hm.tile_size as f32 * hm.geometry.resolution);
+
+	// This is the greatest power of two less than distance_square
+	f32::max(1.0, tile_distance_square.log(2.0).floor().exp2()) as usize
 }
 
 impl<'a, 'b> Renderable<&'a DefaultRenderState<'a>, &'a mut Frame> for SimpleHeightmap<'b> {
@@ -131,7 +178,9 @@ impl<'a> SimpleHeightmap<'a> {
 			display: display,
 			material: Rc::new(material),
 			lods: Vec::new(),
-			tile_size: 256,
+tile_size: 16,
+//			tile_size: 256,
+			lod_zone: (f32::NAN, f32::NAN),
 		};
 		heightmap.geometry.heights.resize(
 				width * height,
@@ -164,7 +213,7 @@ impl<'a> SimpleHeightmap<'a> {
 
 }
 
-pub struct SimpleHeightmapGeometry {
+struct SimpleHeightmapGeometry {
 	width: usize,
 	heights: Vec<HeightmapVertex>,
 	x_offset: f32,
@@ -226,35 +275,54 @@ impl SimpleHeightmapGeometry {
 	}
 
 	/// Convert this heightmap to in-memory 3D geometry.
-	fn as_geometry(&self) -> mem::Geometry {
-		let mut vertices = Vec::with_capacity(self.heights.len());
+	fn as_geometry(&self,
+	               lod: usize,
+				   left_x: usize,
+				   top_z: usize,
+				   right_x: usize,
+				   bottom_z: usize) -> mem::Geometry {
+		let left_x = min(left_x, self.width);
+		let top_z = min(top_z, self.height());
+		let right_x = min(right_x, self.width);
+		let bottom_z = min(bottom_z, self.height());
+		let width = (right_x - left_x) / lod;
+		let height = (bottom_z - top_z) / lod;
+		let mut vertices = Vec::with_capacity(width * height);
 		let mut indices = Vec::new();
-		for z in 0..self.height() {
-			for x in 0..self.width {
+		let mut x = left_x;
+		let mut idx_x = 0;
+		while x < right_x {
+			let mut z = top_z;
+			let mut idx_z = 0;
+			while z < bottom_z {
 				vertices.push(self.get_vertex(x, z));
 				// Compute indices
-				if x < self.width - 1 && z < self.height() - 1 {
+				if x < right_x - lod && z < bottom_z - lod {
 					if z % 2 == 0 {
 						// First triangle:
-						indices.push(self.get_index(x, z) as u16);
-						indices.push(self.get_index(x, z + 1) as u16);
-						indices.push(self.get_index(x + 1, z) as u16);
+						indices.push((idx_z + idx_x * width) as u16);
+						indices.push((idx_z + 1 + idx_x * width) as u16);
+						indices.push((idx_z + (idx_x + 1) * width) as u16);
 						// Second triangle:
-						indices.push(self.get_index(x + 1, z) as u16);
-						indices.push(self.get_index(x, z + 1) as u16);
-						indices.push(self.get_index(x + 1, z + 1) as u16);
+						indices.push((idx_z + 1 + idx_x * width) as u16);
+						indices.push((idx_z + 1 + (idx_x + 1) * width) as u16);
+						indices.push((idx_z + (idx_x + 1) * width) as u16);
 					} else {
 						// First triangle:
-						indices.push(self.get_index(x, z) as u16);
-						indices.push(self.get_index(x + 1, z + 1) as u16);
-						indices.push(self.get_index(x + 1, z) as u16);
+						indices.push((idx_z + idx_x * width) as u16);
+						indices.push((idx_z + 1 + idx_x * width) as u16);
+						indices.push((idx_z + 1 + (idx_x + 1) * width) as u16);
 						// Second triangle:
-						indices.push(self.get_index(x, z) as u16);
-						indices.push(self.get_index(x, z + 1) as u16);
-						indices.push(self.get_index(x + 1, z + 1) as u16);
+						indices.push((idx_z + idx_x * width) as u16);
+						indices.push((idx_z + 1 + (idx_x + 1) * width) as u16);
+						indices.push((idx_z + (idx_x + 1) * width) as u16);
 					}
 				}
+				z += lod;
+				idx_z += 1;
 			}
+			x += lod;
+			idx_x += 1;
 		}
 
 		mem::Geometry {

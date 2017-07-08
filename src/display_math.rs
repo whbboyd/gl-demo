@@ -47,7 +47,7 @@ pub fn view_matrix(position: Vec3<f32>, direction: Vec3<f32>, up: Vec3<f32>) -> 
 pub fn perspective_matrix(width: u32, height: u32, fov: f32) -> Mat4<f32> {
 	let aspect_ratio = height as f32 / width as f32;
 
-	let zfar = 1024.0;
+	let zfar = 1048576.0;
 	let znear = 0.1;
 
 	let f = 1.0 / (fov / 2.0).tan();
