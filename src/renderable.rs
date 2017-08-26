@@ -1,10 +1,8 @@
 //! Trait to allow objects to render themselves
 
-use glium::DrawParameters;
-use glium::Frame;
-use glium::Program;
-use glium::Surface;
-use glium::uniforms::SamplerWrapFunction;
+use glium::{BlitTarget, DrawParameters, Frame, Program, Rect, Surface};
+use glium::texture::Texture2d;
+use glium::uniforms::{MagnifySamplerFilter, SamplerWrapFunction};
 use linear_algebra::{Mat3, Mat4, Vec3};
 use model::gpu::ModelInstance;
 
@@ -68,3 +66,54 @@ impl<'a> Renderable<&'a DefaultRenderState<'a>, &'a mut Frame> for ModelInstance
 	}
 }
 
+
+/// Render text to the screen
+pub struct TextRenderable2d<'a> {
+	text: Vec<u8>,
+	font: &'a Texture2d,
+	chars_wide: u8,
+	chars_high: u8,
+	char_width: u32,
+	char_height: u32,
+}
+
+impl<'a> TextRenderable2d<'a> {
+	pub fn new(text: Vec<u8>, font: &Texture2d, chars_wide: u8) -> TextRenderable2d {
+		let chars_high = (256 / chars_wide as u16) as u8;
+		let char_width = font.width() / chars_wide as u32;
+		let char_height = font.height() / chars_high as u32;
+		TextRenderable2d {
+			text: text,
+			font: font,
+			chars_wide: chars_wide,
+			chars_high: chars_high,
+			char_width: char_width,
+			char_height: char_height,
+		}
+	}
+}
+
+impl<'a> Renderable<&'a DefaultRenderState<'a>, &'a mut Frame> for TextRenderable2d<'a> {
+	fn render(&self, render_state: &DefaultRenderState, target: &mut Frame) {
+		let font_surface = &self.font.as_surface();
+		let mut idx = 0u32;
+		for character in self.text.iter() {
+			let char_origin_x = (character % self.chars_wide) as u32 * self.char_width;
+			let char_origin_y = (self.chars_high - character / self.chars_high - 1) as u32 *
+					self.char_height;
+			target.blit_from_simple_framebuffer(
+					font_surface,
+					&Rect {left: char_origin_x,
+							bottom: char_origin_y,
+							width: self.char_width,
+							height: self.char_height },
+					&BlitTarget {left: idx * self.char_width,
+							bottom: target.get_dimensions().1 - self.char_height,
+							width: self.char_width as i32,
+							height: self.char_height as i32 },
+					MagnifySamplerFilter::Linear);
+
+			idx += 1;
+		}
+	}
+}

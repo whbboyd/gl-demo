@@ -139,8 +139,12 @@ fn gen_lod(hm: &SimpleHeightmap, pos: &Vec3<f32>, x: usize, z: usize) -> usize {
 			(hm.tile_size as f32 * hm.geometry.resolution *
 			hm.tile_size as f32 * hm.geometry.resolution);
 
+error!("Tile {:?}, {:?} (center {:?}, {:?}) at distance {:?} ({:?} tiles) from {:?}, {:?} has LoD {:?}",
+x, z, center_x, center_z, distance_square.sqrt(), tile_distance_square.sqrt(), pos[0], pos[2], min(f32::max(1.0, tile_distance_square.log(2.0).floor().exp2()) as usize, hm.tile_size));
+
 	// This is the greatest power of two less than distance_square
-	f32::max(1.0, tile_distance_square.log(2.0).floor().exp2()) as usize
+	min(f32::max(1.0, tile_distance_square.log(2.0).floor().exp2()) as usize,
+			hm.tile_size)
 }
 
 impl<'a, 'b> Renderable<&'a DefaultRenderState<'a>, &'a mut Frame> for SimpleHeightmap<'b> {
@@ -154,6 +158,7 @@ impl<'a, 'b> Renderable<&'a DefaultRenderState<'a>, &'a mut Frame> for SimpleHei
 					[0.0,		0.0,	1.0,	0.0],
 					[0.0,		0.0,	0.0,	1.0] ], ) }
 				.render(renderstate, target)
+			// Draw LoD HuD in center of tile
 		}
 	}
 }

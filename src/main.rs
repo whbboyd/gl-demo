@@ -54,19 +54,21 @@ use errors::*;
 use glium::{Depth, DisplayBuild, DrawParameters, Program, Surface};
 use glium::draw_parameters::{BackfaceCullingMode, DepthTest};
 use glium::glutin::{Api, ElementState, Event, GlRequest, WindowBuilder};
+use glium::texture::Texture2d;
 use linear_algebra::{Mat4, Vec3};
 use log::{LogLevel, LogRecord};
 use model::heightmap::Heightmap;
-use renderable::Renderable;
+use renderable::{Renderable, TextRenderable2d};
 use std::fs::File;
 use std::io::{BufReader, Read};
 use time::{now, PreciseTime};
 
-const TEAPOT_PATH: &'static str = "data/wt_teapot.obj";
+const TEAPOT_PATH: &'static str = "data/wt-teapot.obj";
 const FLOOR_HEIGHTMAP: &'static str = "data/heightmap.png";
 const FLOOR_MATERIALS: &'static str = "data/materials.mtl";
-const VERTEX_SHADER_PATH: &'static str = "data/vertex_shader.vert";
-const FRAGMENT_SHADER_PATH: &'static str = "data/fragment_shader.frag";
+const FONT_TEXTURE: &'static str = "data/font-texture.png";
+const VERTEX_SHADER_PATH: &'static str = "data/vertex-shader.vert";
+const FRAGMENT_SHADER_PATH: &'static str = "data/fragment-shader.frag";
 
 const CHAR_MAX_SPEED: f32 = 0.2;
 const CHAR_DECEL: f32 = 0.05;
@@ -125,6 +127,11 @@ fn run() -> Result<()> {
 			10.0,
 			&display,
 			floor_mat);
+	let file = try!{ File::open(FONT_TEXTURE).chain_err(|| "Could not load font texture") };
+	let font = try!{ model::disk::load_texture(&mut BufReader::new(file))
+			.chain_err(|| "Could not load font texture") };
+	let font = try!{ Texture2d::new(&display, font)
+			.chain_err(|| "Could not load font texture") };
 
 	info!("Loading shaders...");
 	let mut vertex_shader = String::new();
@@ -233,6 +240,11 @@ fn run() -> Result<()> {
 			object.render(&renderstate, &mut target);
 		}
 		floor.render(&renderstate, &mut target);
+
+		//XXX
+		let hud_text = format!("loc: {:?}, dir: {:?}", character.loc(), camera.dir).to_string().into_bytes();
+		let hud = TextRenderable2d::new(hud_text, &font, 16);
+		hud.render(&renderstate, &mut target);
 
 		target.finish().unwrap();
 
