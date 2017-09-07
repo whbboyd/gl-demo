@@ -78,6 +78,8 @@ pub struct TextRenderable2d<'a> {
 }
 
 impl<'a> TextRenderable2d<'a> {
+	/// Create a new TextRenderable2d containing the given text in the given
+	/// font (which is the given number of characters wide).
 	pub fn new(text: Vec<u8>, font: &Texture2d, chars_wide: u8) -> TextRenderable2d {
 		let chars_high = (256 / chars_wide as u16) as u8;
 		let char_width = font.width() / chars_wide as u32;
@@ -94,7 +96,7 @@ impl<'a> TextRenderable2d<'a> {
 }
 
 impl<'a> Renderable<&'a DefaultRenderState<'a>, &'a mut Frame> for TextRenderable2d<'a> {
-	fn render(&self, render_state: &DefaultRenderState, target: &mut Frame) {
+	fn render(&self, _: &DefaultRenderState, target: &mut Frame) {
 		let font_surface = &self.font.as_surface();
 		let mut idx = 0u32;
 		for character in self.text.iter() {

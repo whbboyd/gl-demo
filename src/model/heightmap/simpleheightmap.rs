@@ -111,7 +111,7 @@ self.lods.clear();
 					self.lods.push(gpu::Model::from_mem(self.display,
 							&mem::Model {
 								geometry: Rc::new(self.geometry.as_geometry(
-										lod, top_z, left_x, bottom_z, right_x)),
+										lod, left_x, top_z, right_x, bottom_z)),
 								material: self.material.clone(),
 							}).unwrap() );
 					z += self.tile_size;

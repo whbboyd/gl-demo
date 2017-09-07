@@ -241,8 +241,16 @@ fn run() -> Result<()> {
 		}
 		floor.render(&renderstate, &mut target);
 
-		//XXX
-		let hud_text = format!("loc: {:?}, dir: {:?}", character.loc(), camera.dir).to_string().into_bytes();
+		//TODO
+		let current_time = PreciseTime::now();
+		let duration = last_time.to(current_time).num_milliseconds() as f32 / 1000.0;
+		let frames = frame % fps_message_interval;
+		let fps = frames as f32 / duration;
+		let hud_text = format!("fps: {:.1}, loc: {:.1},{:.1},{:.1}, dir: {:.1},{:.1},{:.1}",
+				fps,
+				character.loc()[0], character.loc()[1], character.loc()[2],
+				camera.dir[0], camera.dir[1], camera.dir[2])
+				.to_string().into_bytes();
 		let hud = TextRenderable2d::new(hud_text, &font, 16);
 		hud.render(&renderstate, &mut target);
 
