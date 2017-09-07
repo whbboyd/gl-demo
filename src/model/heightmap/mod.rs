@@ -12,6 +12,6 @@ pub trait Heightmap<'a, T: Copy> {
 	fn get_tri_from_position(&self, pos: &Vec3<T>) -> [Vec3<T>; 3];
 
 	/// Update levels of detail based on the camera's position.
-	fn update_lod(&mut self, pos: &Vec3<T>);
+	fn update_lod(&mut self, pos: &Vec3<T>, /*XXX*/ font: &::glium::texture::Texture2d);
 
 }

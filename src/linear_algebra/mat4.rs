@@ -4,6 +4,23 @@ use super::{Mat3, Vec4};
 /// A 4x4 matrix.
 #[derive(Copy,Clone,Debug,PartialEq)]
 pub struct Mat4<T: Copy>([[T; 4]; 4]);
+
+impl<T> Mat4<T> where T: Copy {
+	/// Transpose the matrix.
+	///
+	/// This is useful for example to convert a matrix in row-major format to
+	/// column-major format or vise versa.
+	pub fn transpose(self) -> Self {
+		let mut result = Mat4([[self[0][0]; 4]; 4]);
+		for i in 0..4 {
+			for j in 0..4 {
+				result[i][j] = self[j][i];
+			}
+		}
+		result
+	}
+}
+
 impl<T> Mul for Mat4<T> where T: Copy + Mul<Output = T> + Add<Output = T> {
 	type Output = Self;
 	/// Matrix product

@@ -1,10 +1,14 @@
 //! Trait to allow objects to render themselves
 
 use glium::{BlitTarget, DrawParameters, Frame, Program, Rect, Surface};
+use glium::backend::Facade;
 use glium::texture::Texture2d;
 use glium::uniforms::{MagnifySamplerFilter, SamplerWrapFunction};
 use linear_algebra::{Mat3, Mat4, Vec3};
+use model::Vertex;
+use model::gpu;
 use model::gpu::ModelInstance;
+use model::mem;
 
 /// Trait for an object which may be rendered.
 ///
@@ -78,6 +82,8 @@ pub struct TextRenderable2d<'a> {
 }
 
 impl<'a> TextRenderable2d<'a> {
+	/// Create a new TextRenderable2d containing the given text in the given
+	/// font (which is the given number of characters wide).
 	pub fn new(text: Vec<u8>, font: &Texture2d, chars_wide: u8) -> TextRenderable2d {
 		let chars_high = (256 / chars_wide as u16) as u8;
 		let char_width = font.width() / chars_wide as u32;
@@ -94,7 +100,7 @@ impl<'a> TextRenderable2d<'a> {
 }
 
 impl<'a> Renderable<&'a DefaultRenderState<'a>, &'a mut Frame> for TextRenderable2d<'a> {
-	fn render(&self, render_state: &DefaultRenderState, target: &mut Frame) {
+	fn render(&self, _: &DefaultRenderState, target: &mut Frame) {
 		let font_surface = &self.font.as_surface();
 		let mut idx = 0u32;
 		for character in self.text.iter() {
@@ -116,4 +122,79 @@ impl<'a> Renderable<&'a DefaultRenderState<'a>, &'a mut Frame> for TextRenderabl
 			idx += 1;
 		}
 	}
+}
+
+/// Create a 3D model flag containing the given text in the given font.
+pub fn text_model(
+		text: Vec<u8>,
+		font: &Texture2d,
+		display: &Facade,
+		chars_wide: u8,
+		loc: Vec3<f32>)
+		-> gpu::Model {
+	let chars_high = (256 / chars_wide as u16) as u8;
+	let char_width = font.width() / chars_wide as u32;
+	let char_height = font.height() / chars_high as u32;
+	let font_surface = font.as_surface();
+	let text_texture = Texture2d::empty(
+			display,
+			text.len() as u32 * char_width,
+			char_height).unwrap();
+	// Draw text onto text_texture
+	{
+		let mut text_surface = text_texture.as_surface();
+		text_surface.clear_color(0.0, 0.0, 0.0, 1.0);
+		let mut idx = 0u32;
+		for character in text.iter() {
+			let char_origin_x = (character % chars_wide) as u32 * char_width;
+			let char_origin_y = (chars_high - character / chars_high - 1) as u32 *
+					char_height;
+			text_surface.blit_from_simple_framebuffer(
+					&font_surface,
+					&Rect {left: char_origin_x,
+							bottom: char_origin_y,
+							width: char_width,
+							height: char_height },
+					&BlitTarget {left: idx * char_width,
+							bottom: 0,
+							width: char_width as i32,
+							height: char_height as i32 },
+					MagnifySamplerFilter::Linear);
+			idx += 1;
+		}
+	}
+//XXX Okay, we've just drawn. Something doesn't sync if we don't fiddle with the text.
+text_texture.read_to_pixel_buffer();
+	// Build model
+	let w = text.len() as f32 * 5.0;
+	let geom = mem::Geometry {
+		vertices: vec![
+		Vertex {
+				position: [loc[0], loc[1], loc[2]],
+				normal: [1.0, 0.0, 0.0],
+				tex_uv: [0.0, 0.0] },
+		Vertex {
+				position: [loc[0], loc[1] + 5.0, loc[2]],
+				normal: [1.0, 0.0, 0.0],
+				tex_uv: [0.0, 1.0] },
+		Vertex {
+				position: [loc[0], loc[1] + 5.0, loc[2] + w],
+				normal: [1.0, 0.0, 0.0],
+				tex_uv: [1.0, 1.0] },
+		Vertex {
+				position: [loc[0], loc[1], loc[2] + w],
+				normal: [1.0, 0.0, 0.0],
+				tex_uv: [1.0, 0.0] },
+		],
+		// TODO: The back is backwards. Good enough for now.
+		indices: vec![0, 1, 2, 2, 3, 0, 2, 1, 0, 0, 3, 2],
+	};
+	// Upload text object to GPU and return
+	let gpu_geom = gpu::Geometry::from_mem(display, &geom).unwrap();
+	let gpu_mat = gpu::Material {
+		ambient: (1.0, 1.0, 1.0),
+		specular: (0.0, 0.0, 0.0),
+		texture: text_texture,
+	};
+	gpu::Model { geometry: gpu_geom, material: gpu_mat }
 }

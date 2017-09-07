@@ -85,7 +85,7 @@ impl<'a> Heightmap<'a, f32> for SimpleHeightmap<'a> {
 	}
 
 	/// Update the GPU geometry to account for changing level of detail with location.
-	fn update_lod(&mut self, pos: &Vec3<f32>) {
+	fn update_lod(&mut self, pos: &Vec3<f32>, /*XXX*/ font: &::glium::texture::Texture2d) {
 		// Compute LoD zone under pos
 		let lod_zone_size = self.tile_size as f32 * self.geometry.resolution;
 		let diff = ((pos[0] - self.lod_zone.0).abs(), (pos[2] - self.lod_zone.1).abs());
@@ -102,7 +102,7 @@ self.lods.clear();
 			while x < self.geometry.width {
 				let mut z = 0;
 				while z < self.geometry.height() {
-					let lod = gen_lod(&self, pos, x, z);
+					let lod = min(gen_lod(&self, pos, x, z), self.tile_size / 2);
 
 					let top_z = z;
 					let left_x = x;
@@ -111,9 +111,29 @@ self.lods.clear();
 					self.lods.push(gpu::Model::from_mem(self.display,
 							&mem::Model {
 								geometry: Rc::new(self.geometry.as_geometry(
-										lod, top_z, left_x, bottom_z, right_x)),
+										lod, left_x, top_z, right_x, bottom_z)),
 								material: self.material.clone(),
 							}).unwrap() );
+
+//XXX
+// Draw LoD flag in center of tile
+let lod_text_x = (x as f32 + self.tile_size as f32 / 2.0) *
+		self.geometry.resolution + self.geometry.x_offset;
+let lod_text_z = (z as f32 + self.tile_size as f32 / 2.0) *
+		self.geometry.resolution * ROW_SPACING + self.geometry.z_offset;
+// Figure out ground height at our location
+let hm_vertices = self.get_tri_from_position(&Vec3::from([lod_text_x, 0.0, lod_text_z]));
+let hm_normal = (hm_vertices[0] - hm_vertices[2])
+		.cross(hm_vertices[0] - hm_vertices[1]);
+let hm_d = hm_normal.dot(hm_vertices[0]);
+let lod_text_y = (hm_d -
+		hm_normal[0] * lod_text_x -
+		hm_normal[2] * lod_text_z) /
+		hm_normal[1] + 10.0;
+let lod_text = format!("LoD: {} ({:.0},{:.0},{:.0})", lod, lod_text_x, lod_text_y, lod_text_z).to_string().into_bytes();
+self.lods.push(::renderable::text_model(lod_text, font, self.display, 16,
+		Vec3::from([lod_text_x, lod_text_y + 1.0, lod_text_z])));
+
 					z += self.tile_size;
 				}
 				x += self.tile_size;
@@ -139,9 +159,6 @@ fn gen_lod(hm: &SimpleHeightmap, pos: &Vec3<f32>, x: usize, z: usize) -> usize {
 			(hm.tile_size as f32 * hm.geometry.resolution *
 			hm.tile_size as f32 * hm.geometry.resolution);
 
-error!("Tile {:?}, {:?} (center {:?}, {:?}) at distance {:?} ({:?} tiles) from {:?}, {:?} has LoD {:?}",
-x, z, center_x, center_z, distance_square.sqrt(), tile_distance_square.sqrt(), pos[0], pos[2], min(f32::max(1.0, tile_distance_square.log(2.0).floor().exp2()) as usize, hm.tile_size));
-
 	// This is the greatest power of two less than distance_square
 	min(f32::max(1.0, tile_distance_square.log(2.0).floor().exp2()) as usize,
 			hm.tile_size)
@@ -158,7 +175,6 @@ impl<'a, 'b> Renderable<&'a DefaultRenderState<'a>, &'a mut Frame> for SimpleHei
 					[0.0,		0.0,	1.0,	0.0],
 					[0.0,		0.0,	0.0,	1.0] ], ) }
 				.render(renderstate, target)
-			// Draw LoD HuD in center of tile
 		}
 	}
 }

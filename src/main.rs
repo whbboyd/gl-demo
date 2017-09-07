@@ -212,7 +212,7 @@ fn run() -> Result<()> {
 		dir: Vec3::from([1.0, 0.0, 0.0]),
 	};
 	camera.loc[1] += 0.5;
-	floor.update_lod(&camera.loc);
+	floor.update_lod(&camera.loc, &font);
 
 	// Main program loop
 	info!("Starting program loop...");
@@ -241,8 +241,16 @@ fn run() -> Result<()> {
 		}
 		floor.render(&renderstate, &mut target);
 
-		//XXX
-		let hud_text = format!("loc: {:?}, dir: {:?}", character.loc(), camera.dir).to_string().into_bytes();
+		//TODO
+		let current_time = PreciseTime::now();
+		let duration = last_time.to(current_time).num_milliseconds() as f32 / 1000.0;
+		let frames = frame % fps_message_interval;
+		let fps = frames as f32 / duration;
+		let hud_text = format!("fps: {:.1}, loc: {:.1},{:.1},{:.1}, dir: {:.1},{:.1},{:.1}",
+				fps,
+				character.loc()[0], character.loc()[1], character.loc()[2],
+				camera.dir[0], camera.dir[1], camera.dir[2])
+				.to_string().into_bytes();
 		let hud = TextRenderable2d::new(hud_text, &font, 16);
 		hud.render(&renderstate, &mut target);
 
@@ -298,7 +306,7 @@ fn run() -> Result<()> {
 		// Update camera
 		camera.loc = character.loc().clone();
 		camera.loc[1] += 0.5;
-		floor.update_lod(&camera.loc);
+		floor.update_lod(&camera.loc, &font);
 
 		// Wait for end of frame
 		// We enabled vsync when creating the window, so this happens automatically.
