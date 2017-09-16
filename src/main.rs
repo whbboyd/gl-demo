@@ -122,9 +122,9 @@ fn run() -> Result<()> {
 			&heightmap,
 			0.0,
 			100.0,
-			-500.0,
-			-433.0,
-			10.0,
+			-100.0,
+			-86.6,
+			1.0,
 			&display,
 			floor_mat);
 	let file = try!{ File::open(FONT_TEXTURE).chain_err(|| "Could not load font texture") };

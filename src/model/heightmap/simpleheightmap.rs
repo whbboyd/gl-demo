@@ -103,11 +103,10 @@ self.lods.clear();
 				let mut z = 0;
 				while z < self.geometry.height() {
 					let lod = gen_lod(&self, pos, x, z);
-
 					let top_z = z;
 					let left_x = x;
-					let bottom_z = z + self.tile_size + lod;
-					let right_x = x + self.tile_size + lod;
+					let bottom_z = z + self.tile_size;
+					let right_x = x + self.tile_size;
 					self.lods.push(gpu::Model::from_mem(self.display,
 							&mem::Model {
 								geometry: Rc::new(self.geometry.as_geometry(
@@ -138,9 +137,6 @@ fn gen_lod(hm: &SimpleHeightmap, pos: &Vec3<f32>, x: usize, z: usize) -> usize {
 	let tile_distance_square = distance_square / 
 			(hm.tile_size as f32 * hm.geometry.resolution *
 			hm.tile_size as f32 * hm.geometry.resolution);
-
-error!("Tile {:?}, {:?} (center {:?}, {:?}) at distance {:?} ({:?} tiles) from {:?}, {:?} has LoD {:?}",
-x, z, center_x, center_z, distance_square.sqrt(), tile_distance_square.sqrt(), pos[0], pos[2], min(f32::max(1.0, tile_distance_square.log(2.0).floor().exp2()) as usize, hm.tile_size));
 
 	// This is the greatest power of two less than distance_square
 	min(f32::max(1.0, tile_distance_square.log(2.0).floor().exp2()) as usize,
@@ -183,8 +179,7 @@ impl<'a> SimpleHeightmap<'a> {
 			display: display,
 			material: Rc::new(material),
 			lods: Vec::new(),
-tile_size: 16,
-//			tile_size: 256,
+			tile_size: 256, //FIXME: Probably shouldn't be hardcoded.
 			lod_zone: (f32::NAN, f32::NAN),
 		};
 		heightmap.geometry.heights.resize(
@@ -294,40 +289,50 @@ impl SimpleHeightmapGeometry {
 		let height = (bottom_z - top_z) / lod;
 		let mut vertices = Vec::with_capacity(width * height);
 		let mut indices = Vec::new();
-		let mut x = left_x;
-		let mut idx_x = 0;
-		while x < right_x {
-			let mut z = top_z;
-			let mut idx_z = 0;
-			while z < bottom_z {
+		let mut z = top_z;
+		let mut idx_z = 0;
+		while z < bottom_z {
+			let mut x = left_x;
+			let mut idx_x = 0;
+			while x < right_x {
 				vertices.push(self.get_vertex(x, z));
 				// Compute indices
+				//TODO: If the tile dimensions are not evenly divisible by the
+				// LoD, this will generate out-of-bounds indices.
 				if x < right_x - lod && z < bottom_z - lod {
 					if z % 2 == 0 {
 						// First triangle:
 						indices.push((idx_z + idx_x * width) as u16);
-						indices.push((idx_z + 1 + idx_x * width) as u16);
 						indices.push((idx_z + (idx_x + 1) * width) as u16);
+						indices.push((idx_z + 1 + idx_x * width) as u16);
 						// Second triangle:
 						indices.push((idx_z + 1 + idx_x * width) as u16);
-						indices.push((idx_z + 1 + (idx_x + 1) * width) as u16);
 						indices.push((idx_z + (idx_x + 1) * width) as u16);
+						indices.push((idx_z + 1 + (idx_x + 1) * width) as u16);
 					} else {
 						// First triangle:
 						indices.push((idx_z + idx_x * width) as u16);
-						indices.push((idx_z + 1 + idx_x * width) as u16);
 						indices.push((idx_z + 1 + (idx_x + 1) * width) as u16);
+						indices.push((idx_z + 1 + idx_x * width) as u16);
 						// Second triangle:
 						indices.push((idx_z + idx_x * width) as u16);
-						indices.push((idx_z + 1 + (idx_x + 1) * width) as u16);
 						indices.push((idx_z + (idx_x + 1) * width) as u16);
+						indices.push((idx_z + 1 + (idx_x + 1) * width) as u16);
 					}
 				}
-				z += lod;
-				idx_z += 1;
+				x += lod;
+				idx_x += 1;
 			}
-			x += lod;
-			idx_x += 1;
+			z += lod;
+			idx_z += 1;
+		}
+
+		let vs = vertices.len();
+		let mi = indices.iter().max().unwrap().clone() as usize;
+		if mi != vs || vs > u16::max_value() as usize + 1 {
+			error!("LoD vertices and indices mismatch for tile {},{}-{},{}: \
+					vertices: {}, max index: {}",
+					left_x, top_z, right_x, bottom_z, vs, mi);
 		}
 
 		mem::Geometry {
