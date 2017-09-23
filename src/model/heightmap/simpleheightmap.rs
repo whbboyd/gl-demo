@@ -1,5 +1,5 @@
-
 use glium::backend::Facade;
+use glium::Frame;
 use linear_algebra::{Mat4, Vec3};
 use model::{gpu, mem, Vertex};
 use model::heightmap::Heightmap;
@@ -7,7 +7,8 @@ use renderable::{DefaultRenderState, Renderable};
 use std::cmp::min;
 use std::f32;
 use std::rc::Rc;
-use glium::Frame;
+use std::usize;
+use time::PreciseTime;
 
 /// The spacing between rows of a mesh of equilateral triangles with sides of
 /// length one. This is equal to 0.5 * tan(pi / 3).
@@ -19,12 +20,17 @@ struct HeightmapVertex {
 	metadata: (),
 }
 
+struct LoDTile {
+	lod: usize,
+	tile: gpu::Model,
+}
+
 /// A heightmap, with high-resolution geometry stored entirely in-memory.
 pub struct SimpleHeightmap<'a> {
 	geometry: SimpleHeightmapGeometry,
 	display: &'a Facade,
 	material: Rc<mem::Material>,
-	lods: Vec<gpu::Model>,
+	lods: Vec<LoDTile>,
 	tile_size: usize,
 	lod_zone: (f32, f32),
 }
@@ -89,36 +95,50 @@ impl<'a> Heightmap<'a, f32> for SimpleHeightmap<'a> {
 		// Compute LoD zone under pos
 		let lod_zone_size = self.tile_size as f32 * self.geometry.resolution;
 		let diff = ((pos[0] - self.lod_zone.0).abs(), (pos[2] - self.lod_zone.1).abs());
-		if diff.0.is_nan() || diff.1.is_nan() ||
-			diff.0 > lod_zone_size || diff.0 < 0.0 ||
-			diff.1 > lod_zone_size || diff.1 < 0.0 {
+		// If both dimensions aren't within bounds of the LoD zone, recompute.
+		// This conditional is phrased this way so regeneration triggers when
+		// lod_zone has NaN dimensions.
+		if !(diff.0 <= lod_zone_size && diff.1 <= lod_zone_size) {
+			let start_time = PreciseTime::now();
+			let mut updated_tiles = 0usize;
 			// Update LoD zone 
 			let new_lod_zone = (pos[0] - (pos[0] % (lod_zone_size / 2.0)),
 				pos[2] - (pos[2] % (lod_zone_size / 2.0)));
 			//TODO: Range.step_by is recent and unstable.
-//XXX
-self.lods.clear();
 			let mut x = 0;
+			let mut index = 0;
 			while x < self.geometry.width {
 				let mut z = 0;
 				while z < self.geometry.height() {
 					let lod = gen_lod(&self, pos, x, z);
-					let top_z = z;
-					let left_x = x;
-					let bottom_z = z + self.tile_size;
-					let right_x = x + self.tile_size;
-					self.lods.push(gpu::Model::from_mem(self.display,
-							&mem::Model {
-								geometry: Rc::new(self.geometry.as_geometry(
-										lod, left_x, top_z, right_x, bottom_z)),
-								material: self.material.clone(),
-							}).unwrap() );
+					if lod != self.lods[index].lod {
+						let top_z = z;
+						let left_x = x;
+						let bottom_z = z + self.tile_size;
+						let right_x = x + self.tile_size;
+						//TODO: Cache these somewhere so we can fetch them
+						// instead of regenerating.
+						self.lods[index] = LoDTile {
+							lod: lod,
+							tile: gpu::Model::from_mem(self.display,
+								&mem::Model {
+									geometry: Rc::new(self.geometry.as_geometry(
+											lod, left_x, top_z, right_x, bottom_z)),
+									material: self.material.clone(),
+								}).unwrap()
+							};
+						updated_tiles += 1;
+					}
 					z += self.tile_size;
+					index += 1;
 				}
 				x += self.tile_size;
 			}
 			self.lod_zone = new_lod_zone;
-		} else {
+			info!("Updated LoD ({} of {} tiles) in {:?} milliseconds",
+					updated_tiles,
+					self.lods.len(),
+					start_time.to(PreciseTime::now()).num_milliseconds());
 		}
 	}
 
@@ -140,14 +160,14 @@ fn gen_lod(hm: &SimpleHeightmap, pos: &Vec3<f32>, x: usize, z: usize) -> usize {
 
 	// This is the greatest power of two less than distance_square
 	min(f32::max(1.0, tile_distance_square.log(2.0).floor().exp2()) as usize,
-			hm.tile_size)
+			hm.tile_size - 1)
 }
 
 impl<'a, 'b> Renderable<&'a DefaultRenderState<'a>, &'a mut Frame> for SimpleHeightmap<'b> {
 	fn render(&self, renderstate: &'a DefaultRenderState, target: &mut Frame) {
 		for model in self.lods.iter() {
 			gpu::ModelInstance {
-				model: &model,
+				model: &model.tile,
 				model_matrix: Mat4::from( [
 					[1.0,		0.0,	0.0,	0.0],
 					[0.0,		1.0,	0.0,	0.0],
@@ -178,13 +198,27 @@ impl<'a> SimpleHeightmap<'a> {
 				resolution: resolution, },
 			display: display,
 			material: Rc::new(material),
-			lods: Vec::new(),
+			lods: Vec::with_capacity(width * height),
 			tile_size: 256, //FIXME: Probably shouldn't be hardcoded.
 			lod_zone: (f32::NAN, f32::NAN),
 		};
+		let init_geom = Rc::new(mem::Geometry { vertices: Vec::new(), indices: Vec::new() } );
+		for _ in 0..(width * height) / (heightmap.tile_size * heightmap.tile_size) {
+			heightmap.lods.push(LoDTile {
+					lod: usize::MAX,
+					tile: gpu::Model::from_mem(
+						heightmap.display,
+						&mem::Model {
+							geometry: init_geom.clone(),
+							material: heightmap.material.clone(),
+						}).unwrap()
+					} );
+		}
 		heightmap.geometry.heights.resize(
 				width * height,
-				HeightmapVertex { height: 0.0, metadata: () });
+				HeightmapVertex { height: 0.0, metadata: ()
+			});
+
 		heightmap
 	}
 
@@ -328,7 +362,7 @@ impl SimpleHeightmapGeometry {
 		}
 
 		let vs = vertices.len();
-		let mi = indices.iter().max().unwrap().clone() as usize;
+		let mi = indices.iter().max().unwrap_or(&0).clone() as usize;
 		if mi != vs || vs > u16::max_value() as usize + 1 {
 			error!("LoD vertices and indices mismatch for tile {},{}-{},{}: \
 					vertices: {}, max index: {}",
