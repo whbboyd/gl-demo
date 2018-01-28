@@ -1,5 +1,5 @@
-
 use glium::backend::Facade;
+use glium::Frame;
 use linear_algebra::{Mat4, Vec3};
 use model::{gpu, mem, Vertex};
 use model::heightmap::Heightmap;
@@ -7,7 +7,8 @@ use renderable::{DefaultRenderState, Renderable};
 use std::cmp::min;
 use std::f32;
 use std::rc::Rc;
-use glium::Frame;
+use std::usize;
+use time::PreciseTime;
 
 /// The spacing between rows of a mesh of equilateral triangles with sides of
 /// length one. This is equal to 0.5 * tan(pi / 3).
@@ -19,12 +20,18 @@ struct HeightmapVertex {
 	metadata: (),
 }
 
+struct LoDTile {
+	lod: usize,
+	tile: gpu::Model,
+}
+
 /// A heightmap, with high-resolution geometry stored entirely in-memory.
 pub struct SimpleHeightmap<'a> {
 	geometry: SimpleHeightmapGeometry,
 	display: &'a Facade,
 	material: Rc<mem::Material>,
-	lods: Vec<gpu::Model>,
+	lods: Vec<LoDTile>,
+	seams: Vec<gpu::Model>,
 	tile_size: usize,
 	lod_zone: (f32, f32),
 }
@@ -86,39 +93,234 @@ impl<'a> Heightmap<'a, f32> for SimpleHeightmap<'a> {
 
 	/// Update the GPU geometry to account for changing level of detail with location.
 	fn update_lod(&mut self, pos: &Vec3<f32>) {
+
 		// Compute LoD zone under pos
 		let lod_zone_size = self.tile_size as f32 * self.geometry.resolution;
 		let diff = ((pos[0] - self.lod_zone.0).abs(), (pos[2] - self.lod_zone.1).abs());
-		if diff.0.is_nan() || diff.1.is_nan() ||
-			diff.0 > lod_zone_size || diff.0 < 0.0 ||
-			diff.1 > lod_zone_size || diff.1 < 0.0 {
+
+		// If both dimensions aren't within bounds of the LoD zone, recompute.
+		// This conditional is phrased this way so regeneration triggers when
+		// lod_zone has NaN dimensions.
+		if !(diff.0 <= lod_zone_size && diff.1 <= lod_zone_size) {
+			let start_time = PreciseTime::now();
+			let mut updated_tiles = 0usize;
+
 			// Update LoD zone 
 			let new_lod_zone = (pos[0] - (pos[0] % (lod_zone_size / 2.0)),
 				pos[2] - (pos[2] % (lod_zone_size / 2.0)));
+
+			//TODO: Cache these.
+			self.seams.clear();
+
 			//TODO: Range.step_by is recent and unstable.
-//XXX
-self.lods.clear();
-			let mut x = 0;
-			while x < self.geometry.width {
-				let mut z = 0;
-				while z < self.geometry.height() {
+			let mut z = 0;
+			let mut index = 0;
+			while z < self.geometry.height() {
+				let mut x = 0;
+				while x < self.geometry.width {
 					let lod = gen_lod(&self, pos, x, z);
-					let top_z = z;
-					let left_x = x;
-					let bottom_z = z + self.tile_size;
-					let right_x = x + self.tile_size;
-					self.lods.push(gpu::Model::from_mem(self.display,
-							&mem::Model {
-								geometry: Rc::new(self.geometry.as_geometry(
-										lod, left_x, top_z, right_x, bottom_z)),
-								material: self.material.clone(),
-							}).unwrap() );
-					z += self.tile_size;
+
+					if lod != self.lods[index].lod {
+						let top_z = z;
+						let left_x = x;
+						let bottom_z = z + self.tile_size;
+						let right_x = x + self.tile_size;
+						//TODO: Cache these somewhere so we can fetch them
+						// instead of regenerating.
+						self.lods[index] = LoDTile {
+							lod: lod,
+							tile: gpu::Model::from_mem(self.display,
+								&mem::Model {
+									geometry: Rc::new(self.geometry.as_geometry(
+											lod, left_x, top_z, right_x, bottom_z)),
+									material: self.material.clone(),
+								}).unwrap()
+							};
+						updated_tiles += 1;
+					}
+
+					// TODO: I think what I want here is to write a generic
+					// seam-filling algorithm that takes endpoints and steps
+					// on either side, and then use that.
+
+					// Generate seam fill
+					// This is done for the seams north and west of the
+					// just-generated tile so we can be sure the LoDs of
+					// tiles on both sides; tiles to the south and east
+					// haven't been updated yet, and their LoDs are not
+					// final and may change on this update.
+					// TODO: e-w and n-s are really basically the same.
+					if x > 0 {
+						let mut seam_vertices = Vec::new();
+						let mut seam_indices = Vec::new();
+
+						// Do north-south seams
+						// Find LoD for tile west of this one
+						let west_index = index - 1;
+						let west_lod = self.lods[west_index].lod;
+						// Assign tiles based on LoD
+						let (hr_index, lr_index, hr_x, lr_x, hr_lod, lr_lod) =
+								if west_lod < lod {
+									(west_index, index,
+									(self.tile_size-1) / west_lod, 0,
+									west_lod, lod)
+								} else {
+									(index, west_index,
+									0, (self.tile_size-1) / west_lod,
+									lod, west_lod)
+								};
+
+						// For each vertex on the seam side of the high-res tile
+						for hr_z in 0..(self.tile_size / hr_lod) - 1 {
+							// Find the corresponding vertex on the seam side
+							// of the low-res tile
+							let lr_z = hr_z / (lr_lod / hr_lod);
+
+							// Draw a triangle between this vertex, that
+							// vertex, and the next vertex on this side
+							// TODO: There are duplicate vertices here we can combine.
+							let hm_hr_x = (hr_x * hr_lod) +
+									(hr_index % (self.geometry.width / self.tile_size)) *
+									self.tile_size;
+							let hm_hr_z = (hr_z * hr_lod) +
+									(hr_index / (self.geometry.height() / self.tile_size)) *
+									self.tile_size;
+							let hm_lr_x = (lr_x * lr_lod) +
+									(lr_index % (self.geometry.width / self.tile_size)) *
+									self.tile_size;
+							let hm_lr_z = (lr_z * lr_lod) +
+									(lr_index / (self.geometry.height() / self.tile_size)) *
+									self.tile_size;
+
+							seam_vertices.push(self.geometry.get_vertex(hm_hr_x, hm_hr_z));
+							seam_vertices.push(self.geometry.get_vertex(hm_lr_x, hm_lr_z));
+							seam_vertices.push(self.geometry.get_vertex(hm_hr_x, hm_hr_z + hr_lod));
+
+							seam_indices.push((seam_vertices.len() - 1) as u16);
+							seam_indices.push((seam_vertices.len() - 2) as u16);
+							seam_indices.push((seam_vertices.len() - 3) as u16);
+							//FIXME: Reverse side is needed because some of these are upside down, depending on the results of the hr/lr conditional.
+							seam_indices.push((seam_vertices.len() - 3) as u16);
+							seam_indices.push((seam_vertices.len() - 2) as u16);
+							seam_indices.push((seam_vertices.len() - 1) as u16);
+
+							// And then that vertex, the next vertex on that
+							// size and the next vertex on this side.
+							if hm_lr_z + lr_lod < self.geometry.height() {
+								seam_vertices.push(self.geometry.get_vertex(hm_lr_x, hm_lr_z + lr_lod));
+								seam_indices.push((seam_vertices.len() - 1) as u16);
+								seam_indices.push((seam_vertices.len() - 2) as u16);
+								seam_indices.push((seam_vertices.len() - 3) as u16);
+								//FIXME: Reverse side is needed because some of these are upside down, depending on the results of the hr/lr conditional.
+								seam_indices.push((seam_vertices.len() - 3) as u16);
+								seam_indices.push((seam_vertices.len() - 2) as u16);
+								seam_indices.push((seam_vertices.len() - 1) as u16);
+							}
+
+						}
+						self.seams.push(gpu::Model::from_mem(self.display,
+								&mem::Model {
+									geometry: Rc::new(mem::Geometry {
+										vertices: seam_vertices,
+										indices: seam_indices,
+									}),
+									material: Rc::new(mem::default_mat()),
+								}).unwrap());
+					}
+
+					if z > 0 {
+						let mut seam_vertices = Vec::new();
+						let mut seam_indices = Vec::new();
+
+						// Do east-west seams
+						// Find LoD for tile north of this one
+						let north_index = index - (self.geometry.width / self.tile_size);
+						let north_lod = self.lods[north_index].lod;
+						// Assign tiles based on LoD
+						let (hr_index, lr_index, hr_z, lr_z, hr_lod, lr_lod) =
+								if north_lod < lod {
+									(north_index, index,
+									(self.tile_size-1) / north_lod, 0,
+									north_lod, lod)
+								} else {
+									(index, north_index,
+									0, (self.tile_size-1) / north_lod,
+									lod, north_lod)
+								};
+
+						// For each vertex on the seam side of the high-res tile
+						for hr_x in 0..(self.tile_size / hr_lod) - 1 {
+							// Find the corresponding vertex on the seam side
+							// of the low-res tile
+							let lr_x = hr_x / (lr_lod / hr_lod);
+
+							// Draw a triangle between this vertex, that
+							// vertex, and the next vertex on this side
+							// TODO: There are duplicate vertices here we can combine.
+							let hm_hr_x = (hr_x * hr_lod) +
+									(hr_index % (self.geometry.width / self.tile_size)) *
+									self.tile_size;
+							let hm_hr_z = (hr_z * hr_lod) +
+									(hr_index / (self.geometry.height() / self.tile_size)) *
+									self.tile_size;
+							let hm_lr_x = (lr_x * lr_lod) +
+									(lr_index % (self.geometry.width / self.tile_size)) *
+									self.tile_size;
+							let hm_lr_z = (lr_z * lr_lod) +
+									(lr_index / (self.geometry.height() / self.tile_size)) *
+									self.tile_size;
+
+							seam_vertices.push(self.geometry.get_vertex(hm_hr_x, hm_hr_z));
+							seam_vertices.push(self.geometry.get_vertex(hm_lr_x, hm_lr_z));
+							seam_vertices.push(self.geometry.get_vertex(hm_hr_x + hr_lod, hm_hr_z));
+
+							seam_indices.push((seam_vertices.len() - 1) as u16);
+							seam_indices.push((seam_vertices.len() - 2) as u16);
+							seam_indices.push((seam_vertices.len() - 3) as u16);
+							//FIXME: Reverse side is needed because some of these are upside down, depending on the results of the hr/lr conditional.
+							seam_indices.push((seam_vertices.len() - 3) as u16);
+							seam_indices.push((seam_vertices.len() - 2) as u16);
+							seam_indices.push((seam_vertices.len() - 1) as u16);
+
+							// And then that vertex, the next vertex on that
+							// size and the next vertex on this side.
+							if hm_lr_z + lr_lod < self.geometry.height() {
+								seam_vertices.push(self.geometry.get_vertex(hm_lr_x + lr_lod, hm_lr_z));
+								seam_indices.push((seam_vertices.len() - 1) as u16);
+								seam_indices.push((seam_vertices.len() - 2) as u16);
+								seam_indices.push((seam_vertices.len() - 3) as u16);
+								//FIXME: Reverse side is needed because some of these are upside down, depending on the results of the hr/lr conditional.
+								seam_indices.push((seam_vertices.len() - 3) as u16);
+								seam_indices.push((seam_vertices.len() - 2) as u16);
+								seam_indices.push((seam_vertices.len() - 1) as u16);
+							}
+
+						}
+
+						self.seams.push(gpu::Model::from_mem(self.display,
+								&mem::Model {
+									geometry: Rc::new(mem::Geometry {
+										vertices: seam_vertices,
+										indices: seam_indices,
+									}),
+									material: Rc::new(mem::default_mat()),
+								}).unwrap());
+					}
+
+					// Seam corners
+					if x > 0 && z > 0 {
+					}
+
+					x += self.tile_size;
+					index += 1;
 				}
-				x += self.tile_size;
+				z += self.tile_size;
 			}
 			self.lod_zone = new_lod_zone;
-		} else {
+			info!("Updated LoD ({} of {} tiles) in {:?} milliseconds",
+					updated_tiles,
+					self.lods.len(),
+					start_time.to(PreciseTime::now()).num_milliseconds());
 		}
 	}
 
@@ -139,22 +341,31 @@ fn gen_lod(hm: &SimpleHeightmap, pos: &Vec3<f32>, x: usize, z: usize) -> usize {
 			hm.tile_size as f32 * hm.geometry.resolution);
 
 	// This is the greatest power of two less than distance_square
-	min(f32::max(1.0, tile_distance_square.log(2.0).floor().exp2()) as usize,
-			hm.tile_size)
+	min(f32::max(tile_distance_square.log(2.0).floor().exp2(), 1.0) as usize,
+			hm.tile_size / 2)
 }
 
 impl<'a, 'b> Renderable<&'a DefaultRenderState<'a>, &'a mut Frame> for SimpleHeightmap<'b> {
-	fn render(&self, renderstate: &'a DefaultRenderState, target: &mut Frame) {
+	fn render(&self, render_state: &'a DefaultRenderState, target: &mut Frame) {
 		for model in self.lods.iter() {
 			gpu::ModelInstance {
-				model: &model,
+				model: &model.tile,
 				model_matrix: Mat4::from( [
 					[1.0,		0.0,	0.0,	0.0],
 					[0.0,		1.0,	0.0,	0.0],
 					[0.0,		0.0,	1.0,	0.0],
 					[0.0,		0.0,	0.0,	1.0] ], ) }
-				.render(renderstate, target)
-			// Draw LoD HuD in center of tile
+				.render(render_state, target)
+		}
+		for seam in self.seams.iter() {
+			gpu::ModelInstance {
+				model: &seam,
+				model_matrix: Mat4::from( [
+					[1.0,		0.0,	0.0,	0.0],
+					[0.0,		1.0,	0.0,	0.0],
+					[0.0,		0.0,	1.0,	0.0],
+					[0.0,		0.0,	0.0,	1.0] ], ) }
+				.render(render_state, target)
 		}
 	}
 }
@@ -178,13 +389,28 @@ impl<'a> SimpleHeightmap<'a> {
 				resolution: resolution, },
 			display: display,
 			material: Rc::new(material),
-			lods: Vec::new(),
-			tile_size: 256, //FIXME: Probably shouldn't be hardcoded.
+			lods: Vec::with_capacity(width * height),
+			seams: Vec::new(),
+			tile_size: 64, //FIXME: Probably shouldn't be hardcoded.
 			lod_zone: (f32::NAN, f32::NAN),
 		};
+		let init_geom = Rc::new(mem::Geometry { vertices: Vec::new(), indices: Vec::new() } );
+		for _ in 0..(width * height) / (heightmap.tile_size * heightmap.tile_size) {
+			heightmap.lods.push(LoDTile {
+					lod: usize::MAX,
+					tile: gpu::Model::from_mem(
+						heightmap.display,
+						&mem::Model {
+							geometry: init_geom.clone(),
+							material: heightmap.material.clone(),
+						}).unwrap()
+					} );
+		}
 		heightmap.geometry.heights.resize(
 				width * height,
-				HeightmapVertex { height: 0.0, metadata: () });
+				HeightmapVertex { height: 0.0, metadata: ()
+			});
+
 		heightmap
 	}
 
@@ -328,8 +554,8 @@ impl SimpleHeightmapGeometry {
 		}
 
 		let vs = vertices.len();
-		let mi = indices.iter().max().unwrap().clone() as usize;
-		if mi != vs || vs > u16::max_value() as usize + 1 {
+		let mi = indices.iter().max().unwrap_or(&0).clone() as usize;
+		if mi + 1 != vs || vs > u16::max_value() as usize + 1 {
 			error!("LoD vertices and indices mismatch for tile {},{}-{},{}: \
 					vertices: {}, max index: {}",
 					left_x, top_z, right_x, bottom_z, vs, mi);

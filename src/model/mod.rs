@@ -6,6 +6,7 @@
 pub mod disk;
 pub mod gpu;
 pub mod heightmap;
+pub mod library;
 pub mod mem;
 
 /// A vertex and associated data.

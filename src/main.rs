@@ -52,7 +52,7 @@ mod errors { error_chain! { } }
 use env_logger::LogBuilder;
 use errors::*;
 use glium::{Depth, DisplayBuild, DrawParameters, Program, Surface};
-use glium::draw_parameters::{BackfaceCullingMode, DepthTest};
+use glium::draw_parameters::{BackfaceCullingMode, DepthTest, PolygonMode};
 use glium::glutin::{Api, ElementState, Event, GlRequest, WindowBuilder};
 use glium::texture::Texture2d;
 use linear_algebra::{Mat4, Vec3};
@@ -70,9 +70,11 @@ const FONT_TEXTURE: &'static str = "data/font-texture.png";
 const VERTEX_SHADER_PATH: &'static str = "data/vertex-shader.vert";
 const FRAGMENT_SHADER_PATH: &'static str = "data/fragment-shader.frag";
 
-const CHAR_MAX_SPEED: f32 = 0.2;
+//const CHAR_MAX_SPEED: f32 = 0.2;
+const CHAR_MAX_SPEED: f32 = 1.0;
 const CHAR_DECEL: f32 = 0.05;
-const CHAR_MAX_JUMP: f32 = 0.2;
+//const CHAR_MAX_JUMP: f32 = 0.2;
+const CHAR_MAX_JUMP: f32 = 1.0;
 const CHAR_GRAVITY: f32 = 0.02;
 
 /// Main entry point and error handling.
@@ -108,7 +110,7 @@ fn run() -> Result<()> {
 			.map_err(|e| { Error::from(format!("{:?}", e)) } ) };
 
 	info!("Loading models and textures...");
-	let library = model::mem::ModelLibrary::new();
+	let library = model::library::ModelLibrary::new();
 	let mut file = try!{ File::open(TEAPOT_PATH).chain_err(|| "Could not load teapot model") };
 	let teapot = try!{ library.load_model(&mut file) };
 	let mut file = try!{ File::open(FLOOR_MATERIALS)
@@ -159,6 +161,7 @@ fn run() -> Result<()> {
 			.. Default::default()
 		},
 		backface_culling: BackfaceCullingMode::CullCounterClockwise,
+//		polygon_mode: PolygonMode::Line,
 		.. Default::default()
 	};
 
@@ -227,7 +230,7 @@ fn run() -> Result<()> {
 			camera.dir,
 			Vec3::from([0.0, 1.0, 0.0]));
 
-		let renderstate = renderable::DefaultRenderState {
+		let render_state = renderable::DefaultRenderState {
 			view: view,
 			perspective: perspective,
 			light_pos: light_pos,
@@ -237,9 +240,9 @@ fn run() -> Result<()> {
 		};
 
 		for object in objects.iter() {
-			object.render(&renderstate, &mut target);
+			object.render(&render_state, &mut target);
 		}
-		floor.render(&renderstate, &mut target);
+		floor.render(&render_state, &mut target);
 
 		//TODO
 		let current_time = PreciseTime::now();
@@ -252,7 +255,7 @@ fn run() -> Result<()> {
 				camera.dir[0], camera.dir[1], camera.dir[2])
 				.to_string().into_bytes();
 		let hud = TextRenderable2d::new(hud_text, &font, 16);
-		hud.render(&renderstate, &mut target);
+		hud.render(&render_state, &mut target);
 
 		target.finish().unwrap();
 
