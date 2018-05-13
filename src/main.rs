@@ -49,18 +49,19 @@ pub mod renderable;
 
 mod errors { error_chain! { } }
 
-use env_logger::LogBuilder;
+use env_logger::Builder;
 use errors::*;
-use glium::{Depth, DisplayBuild, DrawParameters, Program, Surface};
-use glium::draw_parameters::{BackfaceCullingMode, DepthTest, PolygonMode};
-use glium::glutin::{Api, ElementState, Event, GlRequest, WindowBuilder};
+use glium::{Depth, Display, DrawParameters, Program, Surface};
+use glium::draw_parameters::{BackfaceCullingMode, DepthTest};
+use glium::glutin::{Api, ContextBuilder, DeviceEvent, ElementState, Event, EventsLoop};
+use glium::glutin::{GlRequest, KeyboardInput, VirtualKeyCode, WindowBuilder, WindowEvent};
 use glium::texture::Texture2d;
 use linear_algebra::{Mat4, Vec3};
-use log::{LogLevel, LogRecord};
+use log::LevelFilter;
 use model::heightmap::Heightmap;
 use renderable::{Renderable, TextRenderable2d};
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::{BufReader, Read, Write};
 use time::{now, PreciseTime};
 
 const TEAPOT_PATH: &'static str = "data/wt-teapot.obj";
@@ -100,13 +101,14 @@ fn run() -> Result<()> {
 	info!("Starting demo...");
 
 	info!("Initializing display...");
-	let display = try!{ WindowBuilder::new()
+	let window = WindowBuilder::new()
+			.with_title("gl-demo");
+	let context = ContextBuilder::new()
 			.with_depth_buffer(24)
-			.with_vsync()
-			//TODO What's the minimum version we can get away with?
-			//FIXME This isn't behaving as expected.
-			.with_gl(GlRequest::Specific(Api::OpenGl, (2, 1)))
-			.build_glium()
+			.with_vsync(true)
+			.with_gl(GlRequest::Specific(Api::OpenGl, (2, 1)));
+	let mut event_loop = EventsLoop::new();
+	let display = try!{ Display::new(window, context, &event_loop)
 			.map_err(|e| { Error::from(format!("{:?}", e)) } ) };
 
 	info!("Loading models and textures...");
@@ -216,10 +218,10 @@ fn run() -> Result<()> {
 	};
 	camera.loc[1] += 0.5;
 	floor.update_lod(&camera.loc);
-
 	// Main program loop
 	info!("Starting program loop...");
-	'main: loop {
+	let mut exit_flag = false;
+	while !exit_flag {
 		frame += 1;
 
 		let mut target = display.draw();
@@ -260,49 +262,42 @@ fn run() -> Result<()> {
 		target.finish().unwrap();
 
 		// Handle events
-		for ev in display.poll_events() {
+		event_loop.poll_events(|ev| {
 			match ev {
-				// Esc or Q:
-				Event::KeyboardInput(ElementState::Released, 9, _) |
-				Event::KeyboardInput(ElementState::Released, 24, _) |
-				Event::Closed =>
-					break 'main,
-				// Up:
-				Event::KeyboardInput(ElementState::Pressed, 25, _) =>
-					movement.forward = true,
-				Event::KeyboardInput(ElementState::Released, 25, _) =>
-					movement.forward = false,
-				// Left:
-				Event::KeyboardInput(ElementState::Pressed, 38, _) =>
-					movement.left = true,
-				Event::KeyboardInput(ElementState::Released, 38, _) =>
-					movement.left = false,
-				// Down:
-				Event::KeyboardInput(ElementState::Pressed, 39, _) =>
-					movement.backward = true,
-				Event::KeyboardInput(ElementState::Released, 39, _) =>
-					movement.backward = false,
-				// Right:
-				Event::KeyboardInput(ElementState::Pressed, 40, _) =>
-					movement.right = true,
-				Event::KeyboardInput(ElementState::Released, 40, _) =>
-					movement.right = false,
-				// Space:
-				Event::KeyboardInput(ElementState::Pressed, 65, _) =>
-					movement.jumping = true,
-				Event::KeyboardInput(ElementState::Released, 65, _) => {
-					movement.jumping = false;
-					movement.can_jump = 0;
-				}
-				Event::MouseMoved(x, y) =>
-					try!{ display_math::handle_mouse_move(
-							&display.get_window().unwrap(), &mut camera, x, y)
+				// Key presses:
+				Event::DeviceEvent{event: DeviceEvent::Key(KeyboardInput{
+						virtual_keycode: Some(keycode), state, ..}), ..} =>
+					match (keycode, state) {
+						(VirtualKeyCode::Q, ElementState::Released) |
+						(VirtualKeyCode::Escape, ElementState::Released) =>
+							exit_flag = true,
+						(VirtualKeyCode::W, ElementState::Pressed) => movement.forward = true,
+						(VirtualKeyCode::W, ElementState::Released) => movement.forward = false,
+						(VirtualKeyCode::A, ElementState::Pressed) => movement.left= true,
+						(VirtualKeyCode::A, ElementState::Released) => movement.left= false,
+						(VirtualKeyCode::S, ElementState::Pressed) => movement.backward = true,
+						(VirtualKeyCode::S, ElementState::Released) => movement.backward = false,
+						(VirtualKeyCode::D, ElementState::Pressed) => movement.right = true,
+						(VirtualKeyCode::D, ElementState::Released) => movement.right = false,
+						(VirtualKeyCode::Space, ElementState::Pressed) =>
+							movement.jumping = true,
+						(VirtualKeyCode::Space, ElementState::Released) => {
+							movement.jumping = false;
+							movement.can_jump = 0;
+						},
+						_ => (),
 					},
-				Event::Resized(w, h) =>
+				//FIXME: This captures mouse events even when unfocused, which is disconcerting.
+				Event::DeviceEvent{event:DeviceEvent::MouseMotion{delta: (x, y)}, ..} =>
+					display_math::handle_mouse_move(
+							&display.gl_window(), &mut camera, x, y).unwrap(),
+				Event::WindowEvent{event: WindowEvent::Resized(w, h), ..} =>
 					perspective = display_math::perspective_matrix(w, h, fov),
-				_ => ()
+				Event::WindowEvent{event: WindowEvent::Closed, ..} =>
+					exit_flag = true,
+				_ => (),
 			}
-		}
+		});
 
 		character.do_char_movement(&camera.dir, &mut movement, &floor);
 
@@ -351,15 +346,16 @@ pub struct MovementState {
 
 /// Configure logging.
 fn init_log() {
-	let mut builder = LogBuilder::new();
-	builder.filter(None, LogLevel::Info.to_log_level_filter());
-	builder.format(|record: &LogRecord| {
-		format!("[{}] [{} {}:{}] [{}] {}",
-			now().rfc3339(),
-			record.location().module_path(),
-			record.location().file(),
-			record.location().line(),
-			record.level(),
-			record.args()) } );
-	builder.init().unwrap();
+	Builder::new()
+		.filter(None, LevelFilter::Info)
+		.format(|buf, record| {
+			write!(buf, "[{}] [{} {}:{}] [{}] {}\n",
+				now().rfc3339(),
+				record.module_path().unwrap_or("unknown module"),
+				record.file().unwrap_or("unknown source file"),
+				record.line().map(|l| format!("{}", l))
+						.unwrap_or("unknown source line".to_string()),
+				record.level(),
+				record.args()) } )
+		.init();
 }

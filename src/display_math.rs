@@ -69,7 +69,8 @@ pub fn perspective_matrix(width: u32, height: u32, fov: f32) -> Mat4<f32> {
 /// in a different location than last seen) will be ignored.
 ///
 /// TODO: The mouse capture and focus management should be handled elsewhere.
-pub fn handle_mouse_move(window: &Window, camera: &mut Camera, x: i32, y: i32) -> Result<()> {
+pub fn handle_mouse_move(window: &Window, camera: &mut Camera, x: f64, y: f64) -> Result<()> {
+
 	// Capture the mouse
 	let (uw, uh) = try!{
 		window.get_inner_size().ok_or(Error::from("Could not get window size"))
@@ -79,15 +80,13 @@ pub fn handle_mouse_move(window: &Window, camera: &mut Camera, x: i32, y: i32) -
 	try!{ window.set_cursor_position(w/2, h/2)
 			.map_err(|_| { Error::from("Could not set cursor position") } ) };
 
-	let dx = w/2 - x;
-	let dy = h/2 - y;
-	if dx.abs() > 200 || dy.abs() > 200 {
-		info!("Skipping camera move due to large delta: {}, {}", dx, dy);
+	if x.abs() > 200.0 || y.abs() > 200.0 {
+		info!("Skipping camera move due to large delta: {}, {}", x, y);
 		return Ok(());
 	}
 
 	// Turn dx into a rotation on the xz plane
-	let dh = dx as f32 * 0.005;
+	let dh = x as f32 * -0.005;
 	camera.dir[0] = camera.dir[0] * dh.cos() - camera.dir[2] * dh.sin();
 	camera.dir[2] = camera.dir[0] * dh.sin() + camera.dir[2] * dh.cos();
 	// Accumulated error will lead to movement glitches if we don't renormalize this.
@@ -100,7 +99,7 @@ pub fn handle_mouse_move(window: &Window, camera: &mut Camera, x: i32, y: i32) -
 	// Clamp dir_y + dy
 	// (otherwise the camera will flip if you cross zenith or nadir, which is super confusing)
 	//FIXME: This more-or-less works, but is probably^Wdefinitely wrong.
-	camera.dir[1] += dy as f32 * 0.005;
+	camera.dir[1] += y as f32 * -0.005;
 
 	Ok(())
 }
