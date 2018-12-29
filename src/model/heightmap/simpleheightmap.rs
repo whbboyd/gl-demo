@@ -159,22 +159,27 @@ impl<'a> Heightmap<'a, f32> for SimpleHeightmap<'a> {
 						let west_index = index - 1;
 						let west_lod = self.lods[west_index].lod;
 						// Assign tiles based on LoD
-						let (hr_index, lr_index, hr_x, lr_x, hr_lod, lr_lod) =
+						let (hr_index, lr_index,
+							hr_x, lr_x,
+							hr_lod, lr_lod,
+							direction) =
 								if west_lod < lod {
 									(west_index, index,
 									(self.tile_size-1) / west_lod, 0,
-									west_lod, lod)
+									west_lod, lod,
+									[1, 2, 3])
 								} else {
 									(index, west_index,
 									0, (self.tile_size-1) / west_lod,
-									lod, west_lod)
+									lod, west_lod,
+									[3, 2, 1])
 								};
 
 						// For each vertex on the seam side of the high-res tile
 						for hr_z in 0..(self.tile_size / hr_lod) - 1 {
 							// Find the corresponding vertex on the seam side
 							// of the low-res tile
-							let lr_z = hr_z / (lr_lod / hr_lod);
+							let lr_z = (hr_z + 1) / (lr_lod / hr_lod);
 
 							// Draw a triangle between this vertex, that
 							// vertex, and the next vertex on this side
@@ -196,27 +201,25 @@ impl<'a> Heightmap<'a, f32> for SimpleHeightmap<'a> {
 							seam_vertices.push(self.geometry.get_vertex(hm_lr_x, hm_lr_z));
 							seam_vertices.push(self.geometry.get_vertex(hm_hr_x, hm_hr_z + hr_lod));
 
-							seam_indices.push((seam_vertices.len() - 1) as u16);
-							seam_indices.push((seam_vertices.len() - 2) as u16);
-							seam_indices.push((seam_vertices.len() - 3) as u16);
-							//FIXME: Reverse side is needed because some of these are upside down, depending on the results of the hr/lr conditional.
-							seam_indices.push((seam_vertices.len() - 3) as u16);
-							seam_indices.push((seam_vertices.len() - 2) as u16);
-							seam_indices.push((seam_vertices.len() - 1) as u16);
+							// Order the vertices in the triangle so it's right-side up.
+							// They'd be upside down depending on which side of the seam
+							// was high vs. low res otherwise.
+							direction.iter().for_each(|o| {
+								seam_indices.push((seam_vertices.len() - o) as u16);
+							});
 
-							// And then that vertex, the next vertex on that
-							// size and the next vertex on this side.
-							if hm_lr_z + lr_lod < self.geometry.height() {
-								seam_vertices.push(self.geometry.get_vertex(hm_lr_x, hm_lr_z + lr_lod));
-								seam_indices.push((seam_vertices.len() - 1) as u16);
-								seam_indices.push((seam_vertices.len() - 2) as u16);
-								seam_indices.push((seam_vertices.len() - 3) as u16);
-								//FIXME: Reverse side is needed because some of these are upside down, depending on the results of the hr/lr conditional.
-								seam_indices.push((seam_vertices.len() - 3) as u16);
-								seam_indices.push((seam_vertices.len() - 2) as u16);
-								seam_indices.push((seam_vertices.len() - 1) as u16);
+							// If we're going to roll over lr vertices, add a tri based on
+							// the lr side with that vertex, the next vertex on that side
+							// and the next vertex on this side.
+							if hm_lr_z + lr_lod < self.geometry.height() &&
+									(hr_z + 2) / (lr_lod / hr_lod) != lr_z {
+								seam_vertices.push(
+									self.geometry.get_vertex(hm_lr_x, hm_lr_z + lr_lod));
+
+								direction.iter().rev().for_each(|o| {
+									seam_indices.push((seam_vertices.len() - o) as u16);
+								});
 							}
-
 						}
 						self.seams.push(gpu::Model::from_mem(self.display,
 								&mem::Model {
