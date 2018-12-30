@@ -2,6 +2,7 @@
 
 use errors::*;
 use glium::glutin::Window;
+use glium::glutin::dpi::LogicalPosition;
 use linear_algebra::{Mat4, Vec3};
 
 /// Representation of a camera: location and direction.
@@ -72,12 +73,12 @@ pub fn perspective_matrix(width: u32, height: u32, fov: f32) -> Mat4<f32> {
 pub fn handle_mouse_move(window: &Window, camera: &mut Camera, x: f64, y: f64) -> Result<()> {
 
 	// Capture the mouse
-	let (uw, uh) = try!{
+	let (uw, uh): (u32, u32) = try!{
 		window.get_inner_size().ok_or(Error::from("Could not get window size"))
-	};
+	}.into();
 	let w = uw as i32;
 	let h = uh as i32;
-	try!{ window.set_cursor_position(w/2, h/2)
+	try!{ window.set_cursor_position(LogicalPosition::from((w/2, h/2)))
 			.map_err(|_| { Error::from("Could not set cursor position") } ) };
 
 	if x.abs() > 200.0 || y.abs() > 200.0 {

@@ -291,9 +291,10 @@ fn run() -> Result<()> {
 				Event::DeviceEvent{event:DeviceEvent::MouseMotion{delta: (x, y)}, ..} =>
 					display_math::handle_mouse_move(
 							&display.gl_window(), &mut camera, x, y).unwrap(),
-				Event::WindowEvent{event: WindowEvent::Resized(w, h), ..} =>
-					perspective = display_math::perspective_matrix(w, h, fov),
-				Event::WindowEvent{event: WindowEvent::Closed, ..} =>
+				Event::WindowEvent{event: WindowEvent::Resized(size), ..} => {
+					let (w, h) = size.into();
+					perspective = display_math::perspective_matrix(w, h, fov)},
+				Event::WindowEvent{event: WindowEvent::CloseRequested, ..} =>
 					exit_flag = true,
 				_ => (),
 			}

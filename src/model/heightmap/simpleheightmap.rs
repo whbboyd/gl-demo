@@ -139,10 +139,6 @@ impl<'a> Heightmap<'a, f32> for SimpleHeightmap<'a> {
 						updated_tiles += 1;
 					}
 
-					// TODO: I think what I want here is to write a generic
-					// seam-filling algorithm that takes endpoints and steps
-					// on either side, and then use that.
-
 					// Generate seam fill
 					// This is done for the seams north and west of the
 					// just-generated tile so we can be sure the LoDs of
@@ -327,13 +323,14 @@ impl<'a> SimpleHeightmap<'a> {
 	///
 	/// A typical invocation of this function might look like
 	///
-	///    let height = self.geometry.height();
-	///    self.generate_seam_fill(
-	///            index,
-	///            index - 1,
-	///            [1, 2, 3],
-	///            height,
-	///            |a, b| (a, b));
+	///     let height = self.geometry.height();
+	///     self.generate_seam_fill(
+	///             index,
+	///             index - 1,
+	///             [1, 2, 3],
+	///             height,
+	///             |a, b| (a, b));
+	///
 	fn generate_seam_fill<F>(&mut self,
 			index: usize,
 			top_index: usize,
