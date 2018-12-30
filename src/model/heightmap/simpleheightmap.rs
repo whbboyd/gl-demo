@@ -149,90 +149,28 @@ impl<'a> Heightmap<'a, f32> for SimpleHeightmap<'a> {
 					// tiles on both sides; tiles to the south and east
 					// haven't been updated yet, and their LoDs are not
 					// final and may change on this update.
-					// TODO: e-w and n-s are really basically the same.
+
+					// Do north-south seams
 					if x > 0 {
-						self.generate_fill(index, lod);
+						let height = self.geometry.height();
+						self.generate_seam_fill(
+								index,
+								index - 1,
+								[1, 2, 3],
+								height,
+								|a, b| (a, b));
 					}
 
+					// Do east-west seams
 					if z > 0 {
-						let mut seam_vertices = Vec::new();
-						let mut seam_indices = Vec::new();
-
-						// Do east-west seams
-						// Find LoD for tile north of this one
-						let north_index = index - (self.geometry.width / self.tile_size);
-						let north_lod = self.lods[north_index].lod;
-						// Assign tiles based on LoD
-						let (hr_index, lr_index,
-							hr_z, lr_z,
-							hr_lod, lr_lod,
-							direction) =
-								if north_lod < lod {
-									(north_index, index,
-									(self.tile_size-1) / north_lod, 0,
-									north_lod, lod,
-									[3, 2, 1])
-								} else {
-									(index, north_index,
-									0, (self.tile_size-1) / north_lod,
-									lod, north_lod,
-									[1, 2, 3])
-								};
-
-						// For each vertex on the seam side of the high-res tile
-						for hr_x in 0..(self.tile_size / hr_lod) - 1 {
-							// Find the corresponding vertex on the seam side
-							// of the low-res tile
-							let lr_x = (hr_x + 1) / (lr_lod / hr_lod);
-
-							// Draw a triangle between this vertex, that
-							// vertex, and the next vertex on this side
-							// TODO: There are duplicate vertices here we can combine.
-							let hm_hr_x = (hr_x * hr_lod) +
-									(hr_index % (self.geometry.width / self.tile_size)) *
-									self.tile_size;
-							let hm_hr_z = (hr_z * hr_lod) +
-									(hr_index / (self.geometry.height() / self.tile_size)) *
-									self.tile_size;
-							let hm_lr_x = (lr_x * lr_lod) +
-									(lr_index % (self.geometry.width / self.tile_size)) *
-									self.tile_size;
-							let hm_lr_z = (lr_z * lr_lod) +
-									(lr_index / (self.geometry.height() / self.tile_size)) *
-									self.tile_size;
-
-							seam_vertices.push(self.geometry.get_vertex(hm_hr_x, hm_hr_z));
-							seam_vertices.push(self.geometry.get_vertex(hm_lr_x, hm_lr_z));
-							seam_vertices.push(self.geometry.get_vertex(hm_hr_x + hr_lod, hm_hr_z));
-
-							// Order the vertices in the triangle so it's right-side up.
-							// They'd be upside down depending on which side of the seam
-							// was high vs. low res otherwise.
-							direction.iter().for_each(|o| {
-								seam_indices.push((seam_vertices.len() - o) as u16);
-							});
-
-							// If we're going to roll over lr vertices, add a tri based on
-							// the lr side with that vertex, the next vertex on that side
-							// and the next vertex on this side.
-							if hm_lr_x + lr_lod < self.geometry.width &&
-									(hr_x + 2) / (lr_lod / hr_lod) != lr_x {
-								seam_vertices.push(
-									self.geometry.get_vertex(hm_lr_x + lr_lod, hm_lr_z));
-
-								direction.iter().rev().for_each(|o| {
-									seam_indices.push((seam_vertices.len() - o) as u16);
-								});
-							}
-						}
-						self.seams.push(gpu::Model::from_mem(self.display,
-								&mem::Model {
-									geometry: Rc::new(mem::Geometry {
-										vertices: seam_vertices,
-										indices: seam_indices,
-									}),
-									material: Rc::new(mem::default_mat()),
-								}).unwrap());
+						let width = self.geometry.width;
+						let top_index = index - width / self.tile_size;
+						self.generate_seam_fill(
+								index,
+								top_index,
+								[3, 2, 1],
+								width,
+								|a, b| (b, a));
 					}
 
 					// Seam corners
@@ -365,56 +303,102 @@ impl<'a> SimpleHeightmap<'a> {
 		heightmap
 	}
 
-	fn generate_fill(&mut self, index: usize, lod: usize) {
+	/// Generate the seam fill and add it to the seams list.
+	///
+	/// This function's signature is a little funky because it abstracts over
+	/// seam fill along different axes. It should be considered an
+	/// implementation detail. The arguments are as follows:
+	///
+	/// * `index`: the index of the LoD tile east/south of the seam to be
+	///		generated.
+	/// * `top_index`: the index of the LoD tile "on top" (west/north) of the
+	///		seam to be generated.
+	/// * `order`: the order of negative offsets into newly-added vertices for
+	///		the seam so that generated triangles are right-side-up. This
+	///		should be one of the two values `[1, 2, 3]` or `[3, 2, 1]`.
+	///		TODO: (Create and) take an `Asc`/`Desc` enum for better
+	///		robustness, or figure it out from the vertices themselves.
+	/// * `dim`: the dimension of the entire heightmap, in vertices, typically
+	///		`self.geometry.width` or `self.geometry.height()`.
+	/// * `axis_assign`: convert internal ("`a`"/"`b`") dimensions to external
+	///		(`x`/`z`) dimensions. This should be one of `|a, b| (a, b)` or
+	///		`|a, b| (b, a)`. TODO: This could plausibly be inferred from
+	///		`order`.
+	///
+	/// A typical invocation of this function might look like
+	///
+	///    let height = self.geometry.height();
+	///    self.generate_seam_fill(
+	///            index,
+	///            index - 1,
+	///            [1, 2, 3],
+	///            height,
+	///            |a, b| (a, b));
+	fn generate_seam_fill<F>(&mut self,
+			index: usize,
+			top_index: usize,
+			order: [usize;3],
+			dim: usize,
+			axis_assign: F)
+			where F: Fn(usize, usize) -> (usize, usize) {
 		let mut seam_vertices = Vec::new();
 		let mut seam_indices = Vec::new();
 
-		// Do north-south seams
-		// Find LoD for tile west of this one
-		let west_index = index - 1;
-		let west_lod = self.lods[west_index].lod;
+		// Find LoD for the tiles on either side of this seam
+		let lod = self.lods[index].lod;
+		let top_lod = self.lods[top_index].lod;
 		// Assign tiles based on LoD
+		// "a" is the axis perpendicular to this seam, "b" is aligned with it
 		let (hr_index, lr_index,
-			hr_x, lr_x,
+			hr_a, lr_a,
 			hr_lod, lr_lod,
 			direction) =
-				if west_lod < lod {
-					(west_index, index,
-					(self.tile_size-1) / west_lod, 0,
-					west_lod, lod,
-					[1, 2, 3])
+				if top_lod < lod {
+					(top_index, index,
+					(self.tile_size-1) / top_lod, 0,
+					top_lod, lod,
+					order)
 				} else {
-					(index, west_index,
-					0, (self.tile_size-1) / west_lod,
-					lod, west_lod,
-					[3, 2, 1])
+					(index, top_index,
+					0, (self.tile_size-1) / top_lod,
+					lod, top_lod,
+					{let mut order = order.clone(); order.reverse(); order})
 				};
 
 		// For each vertex on the seam side of the high-res tile
-		for hr_z in 0..(self.tile_size / hr_lod) - 1 {
+		for hr_b in 0..(self.tile_size / hr_lod) - 1 {
 			// Find the corresponding vertex on the seam side
 			// of the low-res tile
-			let lr_z = (hr_z + 1) / (lr_lod / hr_lod);
+			let lr_b = (hr_b + 1) / (lr_lod / hr_lod);
 
 			// Draw a triangle between this vertex, that
 			// vertex, and the next vertex on this side
 			// TODO: There are duplicate vertices here we can combine.
-			let hm_hr_x = (hr_x * hr_lod) +
-					(hr_index % (self.geometry.width / self.tile_size)) *
-					self.tile_size;
-			let hm_hr_z = (hr_z * hr_lod) +
-					(hr_index / (self.geometry.height() / self.tile_size)) *
-					self.tile_size;
-			let hm_lr_x = (lr_x * lr_lod) +
-					(lr_index % (self.geometry.width / self.tile_size)) *
-					self.tile_size;
-			let hm_lr_z = (lr_z * lr_lod) +
-					(lr_index / (self.geometry.height() / self.tile_size)) *
-					self.tile_size;
+			let (hr_x, hr_z) = axis_assign(hr_a, hr_b);
+
+			let (hm_hr_a, hm_hr_b) = axis_assign(
+					(hr_x * hr_lod) +
+						(hr_index % (self.geometry.width / self.tile_size)) *
+						self.tile_size,
+					(hr_z * hr_lod) +
+						(hr_index / (self.geometry.height() / self.tile_size)) *
+						self.tile_size);
+			let (lr_x, lr_z) = axis_assign(lr_a, lr_b);
+			let (hm_lr_a, hm_lr_b) = axis_assign(
+					(lr_x * lr_lod) +
+						(lr_index % (self.geometry.width / self.tile_size)) *
+						self.tile_size,
+					(lr_z * lr_lod) +
+						(lr_index / (self.geometry.height() / self.tile_size)) *
+						self.tile_size);
+
+			let (hm_hr_x, hm_hr_z) = axis_assign(hm_hr_a, hm_hr_b);
+			let (hm_lr_x, hm_lr_z) = axis_assign(hm_lr_a, hm_lr_b);
+			let (hm_hr_x_next, hm_hr_z_next) = axis_assign(hm_hr_a, hm_hr_b + hr_lod);
 
 			seam_vertices.push(self.geometry.get_vertex(hm_hr_x, hm_hr_z));
 			seam_vertices.push(self.geometry.get_vertex(hm_lr_x, hm_lr_z));
-			seam_vertices.push(self.geometry.get_vertex(hm_hr_x, hm_hr_z + hr_lod));
+			seam_vertices.push(self.geometry.get_vertex(hm_hr_x_next, hm_hr_z_next));
 
 			// Order the vertices in the triangle so it's right-side up.
 			// They'd be upside down depending on which side of the seam
@@ -426,10 +410,10 @@ impl<'a> SimpleHeightmap<'a> {
 			// If we're going to roll over lr vertices, add a tri based on
 			// the lr side with that vertex, the next vertex on that side
 			// and the next vertex on this side.
-			if hm_lr_z + lr_lod < self.geometry.height() &&
-					(hr_z + 2) / (lr_lod / hr_lod) != lr_z {
-				seam_vertices.push(
-					self.geometry.get_vertex(hm_lr_x, hm_lr_z + lr_lod));
+			if hm_lr_b + lr_lod < dim &&
+					(hr_b + 2) / (lr_lod / hr_lod) != lr_b {
+				let (hm_lr_x_next, hm_lr_z_next) = axis_assign(hm_lr_a, hm_lr_b + lr_lod);
+				seam_vertices.push(self.geometry.get_vertex(hm_lr_x_next, hm_lr_z_next));
 
 				direction.iter().rev().for_each(|o| {
 					seam_indices.push((seam_vertices.len() - o) as u16);

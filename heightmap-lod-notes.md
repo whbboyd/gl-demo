@@ -126,4 +126,15 @@ Given a SimpleHeightmap with scale `s`,
 
 Note: remember to multiply all the z-axis values by `ROW_SPACING`.
 
+## Seams
+
+Any of the above approaches leave gaps between adjacent tiles which must be filled. This has the potential to be fairly complicated, especially if the adjacent tiles are at different levels of detail. We take the following approach:
+
+ * After generating the LoD for a given tile, generate the seams north and west of this tile. Because we generate LoDs west to east and north to south, this ensures that the tiles north and west of this one (if they exist) have already had their LoD generated, so we know what resolution to scale both sides of the seam to.
+ * Figure out which side of the seam is high-res and which is low-res.
+ * For each direction (n-s/e-w), for each vertex on the high-res side:
+	* Find the matching vertex on the low-res side. (Note that we want the *closest* vertex on the low-res side, not the floor or ceiling, either of which will cause issues with overlapping and upside-down triangles in some circumstances.)
+	* Draw a triangle between this high-res vertex, the next high-res vertex, and the low-res vertex.
+	* If we're about to jump to a new low-res vertex, draw a triangle between the low-res vertex, the next low-res vertex, and the next high-res vertex. (We can't do this for every high-res vertex because we'll have overlap.)
+ * TODO: draw a quad at the northwest corner, which will otherwise have a hole.
 
