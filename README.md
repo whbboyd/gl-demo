@@ -7,3 +7,5 @@ teapots) with sketched out first-person camera controls.
 
 ![An array of green teapots on a tiled surface, with mountains in the distance](screenshot.png)
 
+[![builds.sr.ht status](https://builds.sr.ht/~whbboyd/gl-demo.svg)](https://builds.sr.ht/~whbboyd/gl-demo?)
+
