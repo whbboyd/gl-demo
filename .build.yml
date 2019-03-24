@@ -1,0 +1,10 @@
+image: debian/stable
+packages:
+    - cargo
+sources:
+    - https://git.sr.ht/~whbboyd/gl-demo
+tasks:
+    - build: |
+        cd gl-demo
+        cargo check
+
