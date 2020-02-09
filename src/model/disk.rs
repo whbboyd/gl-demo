@@ -22,7 +22,7 @@ pub fn load_model(read: &mut io::Read) -> Result<(mem::Geometry, mem::Material)>
 			.chain_err(|| "I/O error loading model")
 	};
 	let mut loaded_object = try!{
-		obj::parse(object_str.into())
+		obj::parse(object_str)
 			.map_err(|e| { Error::from(format!("{:?}", e)) } )
 	};
 
@@ -101,7 +101,7 @@ pub fn load_mats(read: &mut io::Read) -> Result<HashMap<String, mem::Material>> 
 			.chain_err(|| "I/O error loading materials")
 	};
 	let loaded_mats = try!{
-		mtl::parse(mat_str.into())
+		mtl::parse(mat_str)
 			.map_err(|e| { Error::from(format!("{:?}", e)) } )
 	};
 	let mut mats = HashMap::with_capacity(loaded_mats.materials.len());
@@ -135,7 +135,7 @@ fn color_conv(color: mtl::Color) -> (f32, f32, f32) {
 pub fn load_texture<T>(read: &mut T) -> Result<Vec<Vec<(u8, u8, u8, u8)>>>
 		where T: io::BufRead + io::Seek {
 	let image = try!{
-		image::load(read, image::PNG)
+		image::load(read, image::ImageFormat::Png)
 			.chain_err(|| "Could not load texture")
 	}.to_rgba();
 	let (width, height) = image.dimensions();

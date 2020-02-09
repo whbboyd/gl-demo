@@ -1,16 +1,24 @@
 [package]
 name = "gl-demo"
 version = "0.0.1"
-authors = ["Will Boyd <whboyd@wesleyan.edu>"]
+authors = ["Will Boyd <code@whbboyd.com>"]
 
 [dependencies]
-error-chain = { version = "0.8", default-features = false }
+error-chain = "*"
+# Note there's a dependency way down in here somewhere on x11-dl, which
+# contains undefined behavior and triggers a trap on release builds (but
+# doesn't fail instantaneously on debug). See
+# https://github.com/erlepereira/x11-rs/issues/90. Nice going, guys. Wasn't
+# this sort of cowboy idiocy why we're *not* using C here?
 glium = "*"
-# Image 0.12+ depends on too new a version of Rust. We're using rustc 1.12.
-# (This was determined by trial and error, so way to go everyone involved for not documenting this stuff.)
-image = "0.11"
-time = "*"
+image = "*"
+chrono = "*"
 wavefront_obj = "*"
 
 log = "*"
 env_logger = "*"
+
+# TODO arrayvec 0.5+ uses std::mem::MaybeUninit, which is unstable prior to rustc 1.36. 
+rusttype = "<=0.7.8"
+arrayvec = "0.4"
+stb_truetype = "<=0.2.7"

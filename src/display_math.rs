@@ -72,12 +72,12 @@ pub fn perspective_matrix(width: u32, height: u32, fov: f32) -> Mat4<f32> {
 pub fn handle_mouse_move(window: &Window, camera: &mut Camera, x: f64, y: f64) -> Result<()> {
 
 	// Capture the mouse
-	let (uw, uh) = try!{
-		window.get_inner_size().ok_or(Error::from("Could not get window size"))
+	let (w, h): (u32, u32) = try!{
+		window.get_inner_size()
+			.map(|s| s.into())
+			.ok_or(Error::from("Could not get window size"))
 	};
-	let w = uw as i32;
-	let h = uh as i32;
-	try!{ window.set_cursor_position(w/2, h/2)
+	try!{ window.set_cursor_position((w as i32/2, h as i32/2).into())
 			.map_err(|_| { Error::from("Could not set cursor position") } ) };
 
 	if x.abs() > 200.0 || y.abs() > 200.0 {

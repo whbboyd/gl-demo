@@ -30,6 +30,7 @@
 //!  * Space: jump
 //!  * `Q`/Esc: exit
 
+extern crate chrono;
 #[macro_use]
 extern crate error_chain;
 extern crate env_logger;
@@ -38,7 +39,6 @@ extern crate glium;
 extern crate image;
 #[macro_use]
 extern crate log;
-extern crate time;
 extern crate wavefront_obj;
 
 pub mod display_math;
@@ -53,8 +53,9 @@ use env_logger::Builder;
 use errors::*;
 use glium::{Depth, Display, DrawParameters, Program, Surface};
 use glium::draw_parameters::{BackfaceCullingMode, DepthTest};
-use glium::glutin::{Api, ContextBuilder, DeviceEvent, ElementState, Event, EventsLoop};
-use glium::glutin::{GlRequest, KeyboardInput, VirtualKeyCode, WindowBuilder, WindowEvent};
+use glium::glutin::{Api, ContextBuilder, DeviceEvent, ElementState, Event};
+use glium::glutin::{EventsLoop, GlRequest, KeyboardInput, VirtualKeyCode};
+use glium::glutin::{WindowBuilder, WindowEvent};
 use glium::texture::Texture2d;
 use linear_algebra::{Mat4, Vec3};
 use log::LevelFilter;
@@ -62,7 +63,7 @@ use model::heightmap::Heightmap;
 use renderable::{Renderable, TextRenderable2d};
 use std::fs::File;
 use std::io::{BufReader, Read, Write};
-use time::{now, PreciseTime};
+use std::time::Instant;
 
 const TEAPOT_PATH: &'static str = "data/wt-teapot.obj";
 const FLOOR_HEIGHTMAP: &'static str = "data/heightmap.png";
@@ -185,7 +186,7 @@ fn run() -> Result<()> {
 	let light_color = (1.0, 1.0, 1.0f32);
 
 	let mut frame: u64 = 0;
-	let mut last_time = PreciseTime::now();
+	let mut last_time = Instant::now();
 
 	let fps_message_interval = 500;
 	let fov: f32 = std::f32::consts::PI / 2.0;
@@ -244,8 +245,7 @@ fn run() -> Result<()> {
 		floor.render(&renderstate, &mut target);
 
 		//TODO
-		let current_time = PreciseTime::now();
-		let duration = last_time.to(current_time).num_milliseconds() as f32 / 1000.0;
+		let duration = last_time.elapsed().as_millis() as f32 / 1000.0;
 		let frames = frame % fps_message_interval;
 		let fps = frames as f32 / duration;
 		let hud_text = format!("fps: {:.1}, loc: {:.1},{:.1},{:.1}, dir: {:.1},{:.1},{:.1}",
@@ -268,14 +268,22 @@ fn run() -> Result<()> {
 						(VirtualKeyCode::Q, ElementState::Released) |
 						(VirtualKeyCode::Escape, ElementState::Released) =>
 							exit_flag = true,
-						(VirtualKeyCode::W, ElementState::Pressed) => movement.forward = true,
-						(VirtualKeyCode::W, ElementState::Released) => movement.forward = false,
-						(VirtualKeyCode::A, ElementState::Pressed) => movement.left= true,
-						(VirtualKeyCode::A, ElementState::Released) => movement.left= false,
-						(VirtualKeyCode::S, ElementState::Pressed) => movement.backward = true,
-						(VirtualKeyCode::S, ElementState::Released) => movement.backward = false,
-						(VirtualKeyCode::D, ElementState::Pressed) => movement.right = true,
-						(VirtualKeyCode::D, ElementState::Released) => movement.right = false,
+						(VirtualKeyCode::W, ElementState::Pressed) =>
+							movement.forward = true,
+						(VirtualKeyCode::W, ElementState::Released) =>
+							movement.forward = false,
+						(VirtualKeyCode::A, ElementState::Pressed) =>
+							movement.left = true,
+						(VirtualKeyCode::A, ElementState::Released) =>
+							movement.left = false,
+						(VirtualKeyCode::S, ElementState::Pressed) =>
+							movement.backward = true,
+						(VirtualKeyCode::S, ElementState::Released) =>
+							movement.backward = false,
+						(VirtualKeyCode::D, ElementState::Pressed) =>
+							movement.right = true,
+						(VirtualKeyCode::D, ElementState::Released) =>
+							movement.right = false,
 						(VirtualKeyCode::Space, ElementState::Pressed) =>
 							movement.jumping = true,
 						(VirtualKeyCode::Space, ElementState::Released) => {
@@ -284,13 +292,21 @@ fn run() -> Result<()> {
 						},
 						_ => (),
 					},
-				//FIXME: This captures mouse events even when unfocused, which is disconcerting.
+				//FIXME: This captures mouse events even when unfocused, which
+				//	is disconcerting.
 				Event::DeviceEvent{event:DeviceEvent::MouseMotion{delta: (x, y)}, ..} =>
 					display_math::handle_mouse_move(
-							&display.gl_window(), &mut camera, x, y).unwrap(),
-				Event::WindowEvent{event: WindowEvent::Resized(w, h), ..} =>
-					perspective = display_math::perspective_matrix(w, h, fov),
-				Event::WindowEvent{event: WindowEvent::Closed, ..} =>
+							// gl_window returns a Ref (Deref) of a Takeable
+							// (also a Deref) of a context object that contains
+							// the actual window. Somebody needs to tell these
+							// people that "three star C programmer" really,
+							// really isn't a compliment.
+							(**display.gl_window()).window(), &mut camera, x, y).unwrap(),
+				Event::WindowEvent{event: WindowEvent::Resized(size), ..} => {
+					let (w, h) = size.into();
+					perspective = display_math::perspective_matrix(w, h, fov);
+				},
+				Event::WindowEvent{event: WindowEvent::CloseRequested, ..} =>
 					exit_flag = true,
 				_ => (),
 			}
@@ -307,10 +323,9 @@ fn run() -> Result<()> {
 		// We enabled vsync when creating the window, so this happens automatically.
 
 		if frame % fps_message_interval == 0 {
-			let current_time = PreciseTime::now();
-			let duration = last_time.to(current_time).num_milliseconds() as f32 / 1000.0;
+			let duration = last_time.elapsed().as_millis() as f32 / 1000.0;
 			let fps = fps_message_interval as f32 / duration;
-			last_time = current_time;
+			last_time = Instant::now();
 			info!("Rendered {} frames in {} seconds ({} FPS)",
 				fps_message_interval,
 				duration,
@@ -343,11 +358,15 @@ pub struct MovementState {
 
 /// Configure logging.
 fn init_log() {
+	use chrono::DateTime;
+	use chrono::offset::Utc;
+	use std::time::SystemTime;
 	Builder::new()
 		.filter(None, LevelFilter::Info)
 		.format(|buf, record| {
+			let time: DateTime<Utc> = SystemTime::now().into();
 			write!(buf, "[{}] [{} {}:{}] [{}] {}\n",
-				now().rfc3339(),
+				time.to_rfc3339(),
 				record.module_path().unwrap_or("unknown module"),
 				record.file().unwrap_or("unknown source file"),
 				record.line().map(|l| format!("{}", l))
