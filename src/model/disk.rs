@@ -107,7 +107,7 @@ pub fn load_mats(read: &mut io::Read) -> Result<HashMap<String, mem::Material>> 
 	let mut mats = HashMap::with_capacity(loaded_mats.materials.len());
 	for mat in loaded_mats.materials {
 		let tex_path = try!{
-			mat.uv_map
+			mat.diffuse_map
 				.ok_or(Error::from("Material lacks texture specification (map_Kd)"))
 		};
 		let tex_file = try!{
@@ -137,7 +137,7 @@ pub fn load_texture<T>(read: &mut T) -> Result<Vec<Vec<(u8, u8, u8, u8)>>>
 	let image = try!{
 		image::load(read, image::ImageFormat::Png)
 			.chain_err(|| "Could not load texture")
-	}.to_rgba();
+	}.to_rgba8();
 	let (width, height) = image.dimensions();
 	//Derp.
 	let mut y = 0;

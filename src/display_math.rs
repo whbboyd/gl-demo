@@ -1,7 +1,8 @@
 //! Vector math for display transformations.
 
 use errors::*;
-use glium::glutin::Window;
+use glium::glutin::dpi::PhysicalPosition;
+use glium::glutin::window::Window;
 use linear_algebra::{Mat4, Vec3};
 
 /// Representation of a camera: location and direction.
@@ -72,13 +73,9 @@ pub fn perspective_matrix(width: u32, height: u32, fov: f32) -> Mat4<f32> {
 pub fn handle_mouse_move(window: &Window, camera: &mut Camera, x: f64, y: f64) -> Result<()> {
 
 	// Capture the mouse
-	let (w, h): (u32, u32) = try!{
-		window.get_inner_size()
-			.map(|s| s.into())
-			.ok_or(Error::from("Could not get window size"))
-	};
-	try!{ window.set_cursor_position((w as i32/2, h as i32/2).into())
-			.map_err(|_| { Error::from("Could not set cursor position") } ) };
+	let (w, h): (u32, u32) = window.inner_size().into();
+	window.set_cursor_position(PhysicalPosition::new(w/2, h/2))
+		.map_err(|_| { Error::from("Could not set cursor position") } );
 
 	if x.abs() > 200.0 || y.abs() > 200.0 {
 		info!("Skipping camera move due to large delta: {}, {}", x, y);

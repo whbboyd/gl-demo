@@ -53,9 +53,11 @@ use env_logger::Builder;
 use errors::*;
 use glium::{Depth, Display, DrawParameters, Program, Surface};
 use glium::draw_parameters::{BackfaceCullingMode, DepthTest};
-use glium::glutin::{Api, ContextBuilder, DeviceEvent, ElementState, Event};
-use glium::glutin::{EventsLoop, GlRequest, KeyboardInput, VirtualKeyCode};
-use glium::glutin::{WindowBuilder, WindowEvent};
+use glium::glutin::{Api, ContextBuilder};
+use glium::glutin::event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
+use glium::glutin::event_loop::{ControlFlow, EventLoop};
+use glium::glutin::GlRequest;
+use glium::glutin::window::WindowBuilder;
 use glium::texture::Texture2d;
 use linear_algebra::{Mat4, Vec3};
 use log::LevelFilter;
@@ -72,9 +74,9 @@ const FONT_TEXTURE: &'static str = "data/font-texture.png";
 const VERTEX_SHADER_PATH: &'static str = "data/vertex-shader.vert";
 const FRAGMENT_SHADER_PATH: &'static str = "data/fragment-shader.frag";
 
-const CHAR_MAX_SPEED: f32 = 0.2;
+const CHAR_MAX_SPEED: f32 = /*0.2*/1.0;
 const CHAR_DECEL: f32 = 0.05;
-const CHAR_MAX_JUMP: f32 = 0.2;
+const CHAR_MAX_JUMP: f32 = /*0.2*/2.0;
 const CHAR_GRAVITY: f32 = 0.02;
 
 /// Main entry point and error handling.
@@ -106,7 +108,7 @@ fn run() -> Result<()> {
 			.with_depth_buffer(24)
 			.with_vsync(true)
 			.with_gl(GlRequest::Specific(Api::OpenGl, (2, 1)));
-	let mut event_loop = EventsLoop::new();
+	let event_loop = EventLoop::new();
 	let display = try!{ Display::new(window, context, &event_loop)
 			.map_err(|e| { Error::from(format!("{:?}", e)) } ) };
 
@@ -128,7 +130,6 @@ fn run() -> Result<()> {
 			-100.0,
 			-86.6,
 			1.0,
-			&display,
 			floor_mat);
 	let file = try!{ File::open(FONT_TEXTURE).chain_err(|| "Could not load font texture") };
 	let font = try!{ model::disk::load_texture(&mut BufReader::new(file))
@@ -167,8 +168,8 @@ fn run() -> Result<()> {
 
 	info!("Building world...");
 	let gpu_teapot = try!{ model::gpu::Model::from_mem(&display, &teapot) };
-	let mut objects = Vec::new();
-	for x in 0u8..3 { for y in 0u8..3 { for z in 0u8..3 {
+	let mut objects: Vec<model::gpu::ModelInstance> = Vec::new();
+/*	for x in 0u8..3 { for y in 0u8..3 { for z in 0u8..3 {
 		let obx = x as f32 * 1.5;
 		let oby = y as f32 * 1.5;
 		let obz = z as f32 * 1.5;
@@ -180,7 +181,7 @@ fn run() -> Result<()> {
 					[0.0,	scale,	0.0,	0.0],
 					[0.0,	0.0,	scale,	0.0],
 					[obx,	oby,	obz,	1.0] ] ), } );
-	} } };
+	} } };*/
 
 	let light_pos = Vec3::from([-1.0, 0.4, 0.9f32]);
 	let light_color = (1.0, 1.0, 1.0f32);
@@ -215,11 +216,11 @@ fn run() -> Result<()> {
 		dir: Vec3::from([1.0, 0.0, 0.0]),
 	};
 	camera.loc[1] += 0.5;
-	floor.update_lod(&camera.loc);
+	floor.update_lod(&camera.loc, &display);
 	// Main program loop
 	info!("Starting program loop...");
-	let mut exit_flag = false;
-	while !exit_flag {
+	event_loop.run(move |ev, _, control| {
+		*control = ControlFlow::Wait;
 		frame += 1;
 
 		let mut target = display.draw();
@@ -259,65 +260,64 @@ fn run() -> Result<()> {
 		target.finish().unwrap();
 
 		// Handle events
-		event_loop.poll_events(|ev| {
-			match ev {
-				// Key presses:
-				Event::DeviceEvent{event: DeviceEvent::Key(KeyboardInput{
-						virtual_keycode: Some(keycode), state, ..}), ..} =>
-					match (keycode, state) {
-						(VirtualKeyCode::Q, ElementState::Released) |
-						(VirtualKeyCode::Escape, ElementState::Released) =>
-							exit_flag = true,
-						(VirtualKeyCode::W, ElementState::Pressed) =>
-							movement.forward = true,
-						(VirtualKeyCode::W, ElementState::Released) =>
-							movement.forward = false,
-						(VirtualKeyCode::A, ElementState::Pressed) =>
-							movement.left = true,
-						(VirtualKeyCode::A, ElementState::Released) =>
-							movement.left = false,
-						(VirtualKeyCode::S, ElementState::Pressed) =>
-							movement.backward = true,
-						(VirtualKeyCode::S, ElementState::Released) =>
-							movement.backward = false,
-						(VirtualKeyCode::D, ElementState::Pressed) =>
-							movement.right = true,
-						(VirtualKeyCode::D, ElementState::Released) =>
-							movement.right = false,
-						(VirtualKeyCode::Space, ElementState::Pressed) =>
-							movement.jumping = true,
-						(VirtualKeyCode::Space, ElementState::Released) => {
-							movement.jumping = false;
-							movement.can_jump = 0;
-						},
-						_ => (),
+		match ev {
+			// Key presses:
+			Event::WindowEvent{event: WindowEvent::KeyboardInput{input: glium::glutin::event::KeyboardInput{
+					virtual_keycode: Some(keycode), state, ..}, ..}, ..} =>
+				match (keycode, state) {
+					(VirtualKeyCode::Q, ElementState::Released) |
+					(VirtualKeyCode::Escape, ElementState::Released) =>
+						*control = ControlFlow::Exit,
+					(VirtualKeyCode::W, ElementState::Pressed) =>
+						movement.forward = true,
+					(VirtualKeyCode::W, ElementState::Released) =>
+						movement.forward = false,
+					(VirtualKeyCode::A, ElementState::Pressed) =>
+						movement.left = true,
+					(VirtualKeyCode::A, ElementState::Released) =>
+						movement.left = false,
+					(VirtualKeyCode::S, ElementState::Pressed) =>
+						movement.backward = true,
+					(VirtualKeyCode::S, ElementState::Released) =>
+						movement.backward = false,
+					(VirtualKeyCode::D, ElementState::Pressed) =>
+						movement.right = true,
+					(VirtualKeyCode::D, ElementState::Released) =>
+						movement.right = false,
+					(VirtualKeyCode::Space, ElementState::Pressed) =>
+						movement.jumping = true,
+					(VirtualKeyCode::Space, ElementState::Released) => {
+						movement.jumping = false;
+						movement.can_jump = 0;
 					},
-				//FIXME: This captures mouse events even when unfocused, which
-				//	is disconcerting.
-				Event::DeviceEvent{event:DeviceEvent::MouseMotion{delta: (x, y)}, ..} =>
-					display_math::handle_mouse_move(
-							// gl_window returns a Ref (Deref) of a Takeable
-							// (also a Deref) of a context object that contains
-							// the actual window. Somebody needs to tell these
-							// people that "three star C programmer" really,
-							// really isn't a compliment.
-							(**display.gl_window()).window(), &mut camera, x, y).unwrap(),
-				Event::WindowEvent{event: WindowEvent::Resized(size), ..} => {
-					let (w, h) = size.into();
-					perspective = display_math::perspective_matrix(w, h, fov);
+					_ => (),
 				},
-				Event::WindowEvent{event: WindowEvent::CloseRequested, ..} =>
-					exit_flag = true,
-				_ => (),
-			}
-		});
+			//FIXME: This captures mouse events even when unfocused, which
+			//	is disconcerting.
+			Event::DeviceEvent{event:DeviceEvent::MouseMotion{delta: (x, y)}, ..} => {
+				info!("Mouse event: {:?}", ev);
+				display_math::handle_mouse_move(
+						// gl_window returns a Ref (Deref) of a Takeable
+						// (also a Deref) of a context object that contains
+						// the actual window. Somebody needs to tell these
+						// people that "three star C programmer" really,
+						// really isn't a compliment.
+						(**display.gl_window()).window(), &mut camera, x, y).unwrap() },
+			Event::WindowEvent{event: WindowEvent::Resized(size), ..} => {
+				let (w, h) = size.into();
+				perspective = display_math::perspective_matrix(w, h, fov);
+			},
+			Event::WindowEvent{event: WindowEvent::CloseRequested, ..} =>
+				*control = ControlFlow::Exit,
+			_ => (),
+		};
 
 		character.do_char_movement(&camera.dir, &mut movement, &floor);
 
 		// Update camera
 		camera.loc = character.loc().clone();
 		camera.loc[1] += 0.5;
-		floor.update_lod(&camera.loc);
+		//floor.update_lod(&camera.loc, &display);
 
 		// Wait for end of frame
 		// We enabled vsync when creating the window, so this happens automatically.
@@ -331,11 +331,12 @@ fn run() -> Result<()> {
 				duration,
 				fps);
 		}
-	}
 
-	info!("Program loop ended, exiting...");
+	});
 
-	Ok(())
+//	info!("Program loop ended, exiting...");
+
+//	Ok(())
 }
 
 /// Struct to hold character movement state.

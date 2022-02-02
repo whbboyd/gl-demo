@@ -1,6 +1,6 @@
 [package]
 name = "gl-demo"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Will Boyd <code@whbboyd.com>"]
 
 [dependencies]
@@ -18,7 +18,3 @@ wavefront_obj = "*"
 log = "*"
 env_logger = "*"
 
-# TODO arrayvec 0.5+ uses std::mem::MaybeUninit, which is unstable prior to rustc 1.36. 
-rusttype = "<=0.7.8"
-arrayvec = "0.4"
-stb_truetype = "<=0.2.7"

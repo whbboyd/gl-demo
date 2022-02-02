@@ -1,4 +1,5 @@
 
+use glium::Display;
 use glium::backend::Facade;
 use linear_algebra::{Mat4, Vec3};
 use model::{gpu, mem, Vertex};
@@ -20,16 +21,15 @@ struct HeightmapVertex {
 }
 
 /// A heightmap, with high-resolution geometry stored entirely in-memory.
-pub struct SimpleHeightmap<'a> {
+pub struct SimpleHeightmap {
 	geometry: SimpleHeightmapGeometry,
-	display: &'a Facade,
 	material: Rc<mem::Material>,
 	lods: Vec<gpu::Model>,
 	tile_size: usize,
 	lod_zone: (f32, f32),
 }
 
-impl<'a> Heightmap<'a, f32> for SimpleHeightmap<'a> {
+impl Heightmap<f32> for SimpleHeightmap {
 
 	/// Get the triangle under the given position in 3D space
 	fn get_tri_from_position(&self, pos: &Vec3<f32>) -> [Vec3<f32>; 3] {
@@ -85,7 +85,7 @@ impl<'a> Heightmap<'a, f32> for SimpleHeightmap<'a> {
 	}
 
 	/// Update the GPU geometry to account for changing level of detail with location.
-	fn update_lod(&mut self, pos: &Vec3<f32>) {
+	fn update_lod(&mut self, pos: &Vec3<f32>, display: &Display) {
 		// Compute LoD zone under pos
 		let lod_zone_size = self.tile_size as f32 * self.geometry.resolution;
 		let diff = ((pos[0] - self.lod_zone.0).abs(), (pos[2] - self.lod_zone.1).abs());
@@ -107,7 +107,7 @@ self.lods.clear();
 					let left_x = x;
 					let bottom_z = z + self.tile_size;
 					let right_x = x + self.tile_size;
-					self.lods.push(gpu::Model::from_mem(self.display,
+					self.lods.push(gpu::Model::from_mem(display,
 							&mem::Model {
 								geometry: Rc::new(self.geometry.as_geometry(
 										lod, left_x, top_z, right_x, bottom_z)),
@@ -143,7 +143,7 @@ fn gen_lod(hm: &SimpleHeightmap, pos: &Vec3<f32>, x: usize, z: usize) -> usize {
 			hm.tile_size)
 }
 
-impl<'a, 'b> Renderable<&'a DefaultRenderState<'a>, &'a mut Frame> for SimpleHeightmap<'b> {
+impl<'a> Renderable<&'a DefaultRenderState<'a>, &'a mut Frame> for SimpleHeightmap {
 	fn render(&self, renderstate: &'a DefaultRenderState, target: &mut Frame) {
 		for model in self.lods.iter() {
 			gpu::ModelInstance {
@@ -159,7 +159,7 @@ impl<'a, 'b> Renderable<&'a DefaultRenderState<'a>, &'a mut Frame> for SimpleHei
 	}
 }
 
-impl<'a> SimpleHeightmap<'a> {
+impl SimpleHeightmap {
 
 	/// Create a heightmap at a particular size.
 	pub fn with_size(width: usize,
@@ -167,8 +167,7 @@ impl<'a> SimpleHeightmap<'a> {
 			x_offset: f32,
 			z_offset: f32,
 			resolution: f32,
-			display: &'a Facade,
-			material: mem::Material) -> SimpleHeightmap<'a> {
+			material: mem::Material) -> SimpleHeightmap {
 		let mut heightmap = SimpleHeightmap {
 			geometry: SimpleHeightmapGeometry {
 				width: width,
@@ -176,7 +175,6 @@ impl<'a> SimpleHeightmap<'a> {
 				x_offset: x_offset,
 				z_offset: z_offset,
 				resolution: resolution, },
-			display: display,
 			material: Rc::new(material),
 			lods: Vec::new(),
 			tile_size: 256, //FIXME: Probably shouldn't be hardcoded.
@@ -195,12 +193,11 @@ impl<'a> SimpleHeightmap<'a> {
 			x_offset: f32,
 			z_offset: f32,
 			resolution: f32,
-			display: &'a Facade,
-			material: mem::Material) -> SimpleHeightmap<'a> {
+			material: mem::Material) -> SimpleHeightmap {
 		let width = map.len();
 		let height = map[0].len();
 		let mut heightmap = SimpleHeightmap::with_size(
-				width, height, x_offset, z_offset, resolution, display, material);
+				width, height, x_offset, z_offset, resolution, material);
 		for (x, row) in map.iter().enumerate() {
 			for (z, cell) in row.iter().enumerate() {
 				let mut height = (cell.0 as f32 + cell.1 as f32 + cell.2 as f32) / 768.0;
